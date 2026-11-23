@@ -1,15 +1,50 @@
 # OwnShop AI
 
-A free, open-source shop assistant for small businesses that sell through chat. It runs on your own computer with a
-small local AI model. You don't need a server, a cloud account, an AI API key or a monthly plan.
+**Your shop answers customers by itself. Free, on your own computer.**
 
-Customers write to your shop on Telegram, WhatsApp or your website chat. OwnShop AI answers questions from your FAQ,
-finds products, builds the order, asks for a delivery slot, confirms when the customer says YES, then sends the invoice
-and how to pay: your payment QR image, your payment link (Stripe, PayPal, Wise, Revolut, a bank link, any URL), or both.
-You click **Payment received**, **Packed**, **Shipped**, **Delivered** or **Cancel**, and each click messages the customer.
+OwnShop AI is a free, open-source (MIT) shop assistant for small businesses that sell through chat. It runs on your own
+computer with a small built-in AI model. No AI subscription, no paid auto-reply service, no hosting, no domain.
 
-- Website: https://ownshopai.store
-- Manual (step by step, with screenshots): https://ownshopai.store/manual/
+**Website:** https://ownshopai.store · **Manual:** https://ownshopai.store/manual/ · **Download:** https://ownshopai.store/#download
+
+If it helps your shop, please **star** this repo so other shops can find it, and **fork** it to make your own version.
+
+## Who it is for
+
+A small shop or home business that keeps its list in an Excel sheet and talks to customers on WhatsApp or Telegram, and
+anyone who takes bookings: salons, tutors, clinics, studios. Today you answer "price?", "in stock?" and "where is my
+order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a domain. OwnShop AI needs none of them.
+
+## What it does for your customers
+
+- **Answers questions** from your own FAQ sheet and common shop questions (hours, address, delivery, payment methods).
+- **Catalog and prices**: "do you have honey?" gets your products with photo, price and stock.
+- **Takes orders**: builds the cart, asks for a delivery slot, and confirms only when the customer replies YES.
+- **Service bookings**: for a services shop, customers pick a day and a free time from your hours (Calendar page to
+  close a day or remove a slot).
+- **Invoice and how to pay**: an invoice image, then your payment details: a payment link, a QR image, bank transfer
+  text, or a UPI ID with a QR made for each order.
+- **Order and service status**: "what is my order status?" answers that customer's own order.
+- **Hand-off to you**: anything it is not sure about goes to the Chats page for you to answer.
+
+You click **Payment received**, **Packed**, **Shipped**, **Delivered** or **Cancel** on the Orders page, and each click
+messages the customer (Payment received also sends a receipt image). You can **block** a customer on every channel from
+the Users page, and test the whole flow without a phone in the built-in **web chat** (http://localhost:2007/webchat).
+
+## Why it costs nothing
+
+- **Built-in AI.** A small model (Qwen3.5 0.8B via llama.cpp) runs on your computer. Your chats are not sent to an AI company.
+- **No auto-reply service.** It links to Telegram (official bot) and WhatsApp (unofficial link, see below) directly.
+- **No hosting, no domain.** Your computer is the server. It only needs to stay on and online.
+- **Your data stays with you.** Products, orders and chats are files and a database on your computer.
+
+## Support
+
+- **Free support:** questions, bugs and feature requests: [open an issue](https://github.com/ownshopai/ownshopai/issues).
+- **Premium support:** setup done for you, priority help and custom features from deemwar:
+  [join the WhatsApp group](https://chat.whatsapp.com/K4SliNSSW9PEnNlQr7IesZ).
+
+Privacy: https://ownshopai.store/privacy · Terms: https://ownshopai.store/terms
 
 > **Read this first.**
 > - **Telegram** uses the official Telegram Bot API. It is free.
@@ -44,7 +79,7 @@ file. Nothing else to install. On the Mac, until the app is notarized, macOS ask
 2. The page walks you through four steps:
    1. **Shop**: your shop name and currency.
    2. **Products**: upload one Excel file. Not sure what it looks like? Download the example file on that page.
-   3. **Payment**: your payment QR image and/or a payment link.
+   3. **Payment**: choose one way to pay (payment link, QR image, bank transfer text or UPI ID); add more later in Settings.
    4. **Chat channels**: *Connect Telegram* (paste the token @BotFather gives you; the page shows the steps) or
       *Connect WhatsApp* (a pairing code appears on the page; scan it from the spare phone under Linked devices).
       You can connect several WhatsApp numbers and add more later in Settings.
