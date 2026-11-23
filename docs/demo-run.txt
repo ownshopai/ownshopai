@@ -1,0 +1,88 @@
+ownshop chat, scripted run 2026-11-20. Lines in [brackets] are debug: the raw model output and why a hand-off happened.
+
+ownshop chat as Emma Novak (+31600000001). Owner page: http://localhost:8091  Type a message, Ctrl-D to quit.
+# owner: Settings page: shop name, address, receipt footer, payment QR and payment link
+
+customer> hello
+      [model: about_shop(topic=hello)]
+shop> Hello, this is Green Leaf Organics.
+shop> Ask for a product (for example: do you have honey) or about hours and delivery.
+
+customer> what are your opening hours?
+      [model: faq(question=what are your opening hours?)]
+shop> We are open Monday to Saturday, 09:00 to 18:00. Orders by chat are welcome any time.
+
+customer> do you have honey?
+      [model: search_product(query=honey)]
+shop> Here is what we have:
+shop> 1. Raw honey 500g - EUR 9.50 (20 in stock)
+shop> 2. Manuka style honey 250g - EUR 14.90 (8 in stock)
+shop> To order, reply for example: add 2 Raw honey 500g
+
+customer> add 2 raw honey and 1 coconut oil
+      [model: add_to_order(product=raw honey, quantity=2) + add_to_order(product=coconut oil, quantity=1)]
+shop> Added 2 x Raw honey 500g and 1 x Cold-pressed coconut oil 500ml.
+shop> Your order 1042:
+shop> - 2 x Raw honey 500g = EUR 19.00
+shop> - 1 x Cold-pressed coconut oil 500ml = EUR 7.80
+shop> Total: EUR 26.80
+shop> Pick a delivery slot:
+shop> 1. Saturday 10:00-12:00
+shop> 2. Saturday 14:00-16:00
+shop> 3. Monday 17:00-19:00
+shop> Reply for example: slot 1
+
+customer> 1 coconut oil please
+      [model: search_product(query=coconut oil)]
+shop> Here is what we have:
+shop> 1. Cold-pressed coconut oil 500ml - EUR 7.80 (25 in stock)
+shop> 2. Extra virgin olive oil 750ml - EUR 11.40 (15 in stock)
+shop> To order, reply for example: add 2 Cold-pressed coconut oil 500ml
+
+customer> Saturday 10-12
+      [model: pick_slot(slot=Saturday 10-12)]
+shop> Your order 1042:
+shop> - 2 x Raw honey 500g = EUR 19.00
+shop> - 1 x Cold-pressed coconut oil 500ml = EUR 7.80
+shop> Total: EUR 26.80
+shop> Delivery: Saturday 10:00-12:00
+shop> Reply YES to confirm order 1042.
+
+customer> YES
+      [YES with a cart waiting: confirm in Go]
+shop> Green Leaf Organics, 12 Market Lane, Utrecht
+shop> Order 1042 confirmed. Invoice INV-1042
+shop> - 2 x Raw honey 500g = EUR 19.00
+shop> - 1 x Cold-pressed coconut oil 500ml = EUR 7.80
+shop> Total: EUR 26.80
+shop> Delivery: Saturday 10:00-12:00
+shop> Green Leaf Organics: please pay EUR 26.80 using this QR code or at https://pay.example.com/demo-shop. Put order 1042 in the payment note or reference.
+shop> [image] uploads/payment-qr.png
+# owner: Orders page: click Payment received
+shop> Payment received for order 1042, thank you. Your receipt is attached. Invoice INV-1042 is paid.
+shop> [image] receipts/receipt-1042.png
+# web reply: Order 1042 is now Payment received. Customer notified.
+# owner: Orders page: click Packed
+shop> Good news: order 1042 is packed.
+# web reply: Order 1042 is now Packed. Customer notified.
+
+customer> where is my order
+      [model: order_status(order_id=ORD-12345)]
+shop> Order 1042: Packed. Delivery slot: Saturday 10:00-12:00.
+
+customer> what is the weather today
+      [hand-off: model chose none]
+      [model: none(reason=Weather question)]
+shop> Thanks for your message. The shop will reply shortly.
+
+customer> tell me a joke
+      [hand-off: model chose none]
+      [model: none(reason=Joke)]
+shop> Thanks for your message. The shop will reply shortly.
+hand-offs: 2
+invoice INV-1042 paid=1
+stock raw honey (database): 18
+
+orders.csv (the file the owner opens):
+order,date,customer,channel,items,total,status,invoice
+1042,2026-11-20 22:24:46,Emma Novak +31600000001,terminal,2 x Raw honey 500g; 1 x Cold-pressed coconut oil 500ml,26.80,Packed,INV-1042

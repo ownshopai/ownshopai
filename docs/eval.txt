@@ -1,0 +1,119 @@
+== fixed prompt only (default)
+ok   "what time do you open on saturday"      want faq             got faq(question=what time do you open on Saturday?)
+ok   "are u open sunday"                      want faq             got faq(question=are u open sunday)
+ok   "do you deliver to Rotterdam?"           want faq             got faq(question=Do you deliver to Rotterdam?)
+ok   "how much is delivery"                   want faq             got faq(question=how much is delivery)
+ok   "can i return the soap if i dont like it" want faq             got faq(question=can i return the soap if i dont like it)
+ok   "is the honey organic certified?"        want faq             got faq(question=is the honey organic certified?)
+ok   "wat r ur opening hours"                 want faq             got faq(question=what are the opening hours of the shop?)
+ok   "do you have honey?"                     want search_product  got search_product(query=honey)
+ok   "got any almond butter"                  want search_product  got search_product(query=almond butter)
+ok   "price of coconut oil?"                  want search_product  got search_product(query=coconut oil)
+ok   "is millet flour in stock"               want search_product  got search_product(query=millet flour)
+MISS "do u sell green tea"                    want search_product  got faq(question=do you sell green tea)
+ok   "how much for the lavender soap"         want search_product  got search_product(query=lavender soap)
+ok   "any gluten free flour?"                 want search_product  got search_product(query=gluten free flour)
+ok   "add 2 raw honey"                        want add_to_order    got add_to_order(product=raw honey, quantity=2)
+MISS "I want 3 jars of almond butter"         want add_to_order    got search_product(query=almond butter)
+MISS "1 coconut oil please"                   want add_to_order    got search_product(query=coconut oil)
+ok   "pls add two herbal tea"                 want add_to_order    got add_to_order(product=herbal tea, quantity=2)
+MISS "can I order 4 beeswax soaps"            want add_to_order    got search_product(query=beeswax soaps)
+ok   "put 1 olive oil in my basket"           want add_to_order    got add_to_order(product=olive oil, quantity=1)
+ok   "add 2 honey and 1 coconut oil"          want add_to_order    got add_to_order(product=honey, quantity=2) + add_to_order(product=coconut oil, quantity=1)
+MISS "i'll take 5 oats"                       want add_to_order    got search_product(query=oats)
+ok   "slot 2"                                 want pick_slot       got pick_slot(slot=2)
+ok   "Saturday 10-12"                         want pick_slot       got pick_slot(slot=Saturday 10-12)
+MISS "monday evening works"                   want pick_slot       got faq(question=what is the shop's opening hours?)
+ok   "the afternoon one on saturday pls"      want pick_slot       got pick_slot(slot=Saturday 10-12)
+MISS "YES"                                    want confirm_order   got about_shop(topic=order)
+MISS "yes please"                             want confirm_order   got none(reason=Customer wants to confirm their order)
+ok   "Yes, confirm"                           want confirm_order   got confirm_order(answer=Yes)
+ok   "send me the payment qr"                 want send_payment_qr got send_payment_qr()
+MISS "how do i pay?"                          want send_payment_qr got faq(question=how do I pay at the shop?)
+ok   "where is my order"                      want order_status    got order_status(order_id=ORD-12345)
+ok   "has order 1042 shipped?"                want order_status    got order_status(order_id=1042)
+MISS "when will my stuff arrive"              want order_status    got faq(question=when will my stuff arrive)
+ok   "status of my order pls"                 want order_status    got order_status(order_id=ORD-12345)
+ok   "hello"                                  want about_shop      got about_shop(topic=hello)
+ok   "what do you sell?"                      want about_shop      got about_shop(topic=products)
+MISS "who are you"                            want about_shop      got (no call) text: Hello! I am the WhatsApp assistant of a small organic shop. I am here to help you wi...
+ok   "find customer Emma Novak"               want find_customer   got find_customer(name=Emma Novak)
+ok   "what is the weather today"              want none            got none(reason=Weather question)
+ok   "tell me a joke"                         want none            got none(reason=Joke)
+MISS "who won the match last night"           want none            got faq(question=who won the match last night)
+MISS "can you help me with my homework"       want none            got faq(question=what is the hours of operation for the shop?)
+MISS "what's bitcoin at"                      want none            got faq(question=what is bitcoin)
+
+tool              cases    tool ok  tool+args
+about_shop            3          2          2
+add_to_order          8          4          4
+confirm_order         3          1          1
+faq                   7          7          7
+find_customer         1          1          1
+none                  5          2          2
+order_status          4          3          3
+pick_slot             4          3          3
+search_product        7          6          6
+send_payment_qr       2          1          1
+TOTAL tool choice 30/44 (68%), avg 253 ms per message
+
+== fixed prompt + shop soul
+ok   "what time do you open on saturday"      want faq             got faq(question=what time do you open on saturday)
+ok   "are u open sunday"                      want faq             got faq(question=are u open sunday)
+ok   "do you deliver to Rotterdam?"           want faq             got faq(question=Do you deliver to Rotterdam?)
+ok   "how much is delivery"                   want faq             got faq(question=how much is delivery)
+MISS "can i return the soap if i dont like it" want faq             got (no call) text: Hello! I'd be happy to help with your return. I can't directly access your order, bu...
+ok   "is the honey organic certified?"        want faq             got faq(question=is the honey organic certified?)
+MISS "wat r ur opening hours"                 want faq             got (no call) text: Hello! I am Green Leaf Organics. Our opening hours are: * **Monday - Friday:** 8:00 ...
+ok   "do you have honey?"                     want search_product  got search_product(query=honey)
+ok   "got any almond butter"                  want search_product  got search_product(query=almond butter)
+ok   "price of coconut oil?"                  want search_product  got search_product(query=coconut oil)
+ok   "is millet flour in stock"               want search_product  got search_product(query=millet flour)
+ok   "do u sell green tea"                    want search_product  got search_product(query=green tea)
+MISS "how much for the lavender soap"         want search_product  got about_shop(topic=products)
+ok   "any gluten free flour?"                 want search_product  got search_product(query=gluten free flour)
+ok   "add 2 raw honey"                        want add_to_order    got add_to_order(product=raw honey, quantity=2)
+MISS "I want 3 jars of almond butter"         want add_to_order    got search_product(query=almond butter)
+ok   "1 coconut oil please"                   want add_to_order    got add_to_order(product=coconut oil, quantity=1)
+ok   "pls add two herbal tea"                 want add_to_order    got add_to_order(product=herbal tea, quantity=2)
+MISS "can I order 4 beeswax soaps"            want add_to_order    got search_product(query=beeswax soap)
+ok   "put 1 olive oil in my basket"           want add_to_order    got add_to_order(product=olive oil, quantity=1)
+ok   "add 2 honey and 1 coconut oil"          want add_to_order    got add_to_order(product=honey, quantity=2) + add_to_order(product=coconut oil, quantity=1)
+MISS "i'll take 5 oats"                       want add_to_order    got search_product(query=oats)
+ok   "slot 2"                                 want pick_slot       got pick_slot(slot=2)
+ok   "Saturday 10-12"                         want pick_slot       got pick_slot(slot=Saturday 10-12)
+MISS "monday evening works"                   want pick_slot       got (no call) text: Hello! I'm glad you're on a good day. How can I help you today? 🌿 Are you looking fo...
+ok   "the afternoon one on saturday pls"      want pick_slot       got pick_slot(slot=Saturday 10-12)
+MISS "YES"                                    want confirm_order   got about_shop(topic=hello)
+MISS "yes please"                             want confirm_order   got (no call) text: Hello! I'm glad you're ready to start shopping at Green Leaf Organics. I can help yo...
+ok   "Yes, confirm"                           want confirm_order   got confirm_order(answer=Yes)
+ok   "send me the payment qr"                 want send_payment_qr got send_payment_qr(order_id=ORD-12345)
+MISS "how do i pay?"                          want send_payment_qr got about_shop()
+ok   "where is my order"                      want order_status    got order_status(order_id=ORD-12345)
+ok   "has order 1042 shipped?"                want order_status    got order_status(order_id=1042)
+ok   "when will my stuff arrive"              want order_status    got order_status(order_id=ORD-12345)
+ok   "status of my order pls"                 want order_status    got order_status(order_id=ORD-12345)
+ok   "hello"                                  want about_shop      got about_shop()
+ok   "what do you sell?"                      want about_shop      got about_shop(topic=products)
+MISS "who are you"                            want about_shop      got (no call) text: Hello! I am Green Leaf Organics, and I am here to help you find products, order your...
+ok   "find customer Emma Novak"               want find_customer   got find_customer(name=Emma Novak)
+ok   "what is the weather today"              want none            got none(reason=Weather question)
+ok   "tell me a joke"                         want none            got none(reason=Joke)
+MISS "who won the match last night"           want none            got faq(question=who won the match last night)
+MISS "can you help me with my homework"       want none            got faq(question=what is homework?)
+MISS "what's bitcoin at"                      want none            got search_product(query=bitcoin)
+
+tool              cases    tool ok  tool+args
+about_shop            3          2          2
+add_to_order          8          5          5
+confirm_order         3          1          1
+faq                   7          5          5
+find_customer         1          1          1
+none                  5          2          2
+order_status          4          4          4
+pick_slot             4          3          3
+search_product        7          6          6
+send_payment_qr       2          1          1
+TOTAL tool choice 30/44 (68%), avg 388 ms per message
+
+SUMMARY without soul 30/44, with soul 30/44

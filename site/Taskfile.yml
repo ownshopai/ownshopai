@@ -1,0 +1,11 @@
+version: "3"
+# Product site for https://ownshopai.store on Cloudflare Pages (project ownshopai-ui).
+# Media and downloads live in R2 at https://downloads.deemwar.com/ownshopai/.
+tasks:
+  build:
+    cmds:
+      - node build.mjs
+  deploy:
+    deps: [build]
+    cmds:
+      - sec run CLOUDFLARE_ALLPURPOSE_TOKEN=CLOUDFLARE_API_TOKEN,CLOUDFLARE_ACCOUNT_ID -- wrangler pages deploy public --project-name ownshopai-ui --branch main --commit-dirty=true

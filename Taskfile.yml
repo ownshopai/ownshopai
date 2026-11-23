@@ -1,0 +1,78 @@
+version: '3'
+
+vars:
+  WHISPER_VERSION: v1.9.0
+  LLAMA_TAG: b9620 # llama.cpp release with Qwen3.5 and --jinja tool calls
+  WACLI_COMMIT: 5578d1b6892f50a8f2329b11a6b6e27a1a81f88b # github.com/openclaw/wacli commit the installers are built from
+  WACLI_SRC: '{{.WACLI_SRC | default "third_party/wacli-src"}}' # wacli source; cloned at WACLI_COMMIT when missing
+
+tasks:
+  voice-deps:
+    desc: fetch and build whisper.cpp as static libraries into third_party/ (needs cmake and brew opus); once per machine
+    status:
+      - test -f third_party/whisper.cpp/build/src/libwhisper.a
+      - test -f /opt/homebrew/opt/opus/lib/libopus.a
+    cmds:
+      - brew list opus >/dev/null 2>&1 || brew install opus
+      - test -d third_party/whisper.cpp || git clone --depth 1 --branch {{.WHISPER_VERSION}} https://github.com/ggml-org/whisper.cpp third_party/whisper.cpp
+      - cmake -S third_party/whisper.cpp -B third_party/whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL_EMBED_LIBRARY=ON -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF
+      - cmake --build third_party/whisper.cpp/build -j 8
+
+  voice-deps-windows:
+    desc: cross-build whisper.cpp and libopus for Windows amd64 + arm64 with zig (needs zig, cmake); once per machine
+    status:
+      - test -f third_party/win/whisper/src/libwhisper.a
+      - test -f third_party/winarm/whisper/src/libwhisper.a
+    cmds:
+      - sh scripts/windows-voice-deps.sh
+
+  bundle-deps:
+    desc: build wacli and a static llama-server for darwin-arm64, windows-amd64, windows-arm64 into bundled/ (needs go, zig, cmake); cached
+    status:
+      - test -f bundled/darwin-arm64/wacli -a -f bundled/darwin-arm64/llama-server
+      - test -f bundled/windows-amd64/wacli.exe -a -f bundled/windows-amd64/llama-server.exe
+      - test -f bundled/windows-arm64/wacli.exe -a -f bundled/windows-arm64/llama-server.exe
+    cmds:
+      - test -d "{{.WACLI_SRC}}" || (git clone -q https://github.com/openclaw/wacli "{{.WACLI_SRC}}" && git -C "{{.WACLI_SRC}}" checkout -q {{.WACLI_COMMIT}})
+      - mkdir -p third_party && rsync -a --delete --exclude .git --exclude .agents --exclude .github "{{.WACLI_SRC}}/" third_party/wacli/
+      - LLAMA_TAG={{.LLAMA_TAG}} sh scripts/bundle-deps.sh
+
+  linux-arm64:
+    desc: static linux/arm64 ownshop for Termux on Android (zig, aarch64-linux-musl) with wacli, llama-server and voice inside; dist/ownshop-linux-arm64.tar.gz with models and run-termux.sh
+    cmds:
+      - test -d "{{.WACLI_SRC}}" || (git clone -q https://github.com/openclaw/wacli "{{.WACLI_SRC}}" && git -C "{{.WACLI_SRC}}" checkout -q {{.WACLI_COMMIT}})
+      - mkdir -p third_party && rsync -a --delete --exclude .git --exclude .agents --exclude .github "{{.WACLI_SRC}}/" third_party/wacli/
+      - LLAMA_TAG={{.LLAMA_TAG}} WHISPER_VERSION={{.WHISPER_VERSION}} sh scripts/linux-arm64.sh
+
+  check:
+    desc: vet and test (plain build, then the voice build with whisper.cpp and libopus linked in)
+    deps: [voice-deps]
+    cmds:
+      - go vet ./...
+      - go test ./...
+      - go vet -tags voice ./...
+      - go test -tags voice ./...
+
+  build:
+    desc: build darwin/arm64, windows/amd64 and windows/arm64 into dist/, each with voice notes, wacli and llama-server inside
+    deps: [voice-deps, voice-deps-windows, bundle-deps]
+    cmds:
+      - CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags voice,bundle -trimpath -ldflags "-s -w" -o dist/ownshop-darwin-arm64 .
+      - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=$PWD/third_party/win/zcc CXX=$PWD/third_party/win/zcxx go build -tags voice,bundle -trimpath -ldflags "-s -w" -o dist/ownshop-windows-amd64.exe .
+      - CGO_ENABLED=1 GOOS=windows GOARCH=arm64 CC=$PWD/third_party/winarm/zcc CXX=$PWD/third_party/winarm/zcxx go build -tags voice,bundle -trimpath -ldflags "-s -w" -o dist/ownshop-windows-arm64.exe .
+
+  package:
+    desc: the one download per OS, models included - dist/ownshop-macos-arm64.dmg and dist/ownshop-setup-windows-{amd64,arm64}.exe (needs models/)
+    deps: [build]
+    cmds:
+      - sh scripts/macos-dmg.sh
+      - sh scripts/windows-setup.sh
+
+  eval:
+    desc: score the model on ~44 customer messages (needs bundled/ from task bundle-deps and models/qwen35-0.8b-q4km.gguf); writes docs/eval.txt
+    cmds:
+      - mkdir -p docs
+      - go run -tags bundle . eval --db "{{.TMPDIR}}/ownshop-eval.db" | tee docs/eval.txt
+    vars:
+      TMPDIR:
+        sh: mktemp -d

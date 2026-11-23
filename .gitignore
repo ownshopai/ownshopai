@@ -1,0 +1,15 @@
+models/
+*.gguf
+*.db
+/dist/
+/ownshop
+/ownshop.exe
+uploads/
+receipts/
+*.db-wal
+*.db-shm
+marketing/
+/third_party/
+/bundled/
+/washop
+/washop.exe

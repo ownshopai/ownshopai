@@ -1,0 +1,37 @@
+ownshop uses the following third-party work.
+
+Qwen3.5-0.8B (model weights, not included in this repository)
+  Copyright Alibaba Cloud (Qwen team). Apache License 2.0, as stated on the model card:
+  https://huggingface.co/Qwen/Qwen3.5-0.8B (licence: https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/LICENSE)
+  Used as a Q4_K_M GGUF quantisation of that model.
+
+Model client and tool calling - github.com/muthuishere/toolnexus/golang (MIT License)
+
+wacli - WhatsApp from the terminal (carried inside ownshop, unpacked and run as a separate program, not linked)
+  MIT License, Copyright (c) 2026 Peter Steinberger. Source: https://github.com/openclaw/wacli
+  wacli itself uses whatsmeow (go.mau.fi/whatsmeow, Mozilla Public License 2.0) and go.mau.fi/libsignal
+  (GNU General Public License 3.0). The wacli program as shipped is therefore distributed under GPL-3.0 terms.
+  It is a separate program; ownshop's own code is MIT. See THIRD-PARTY-NOTICES for the exact source used.
+
+llama.cpp b9620 - llama-server (carried inside ownshop, unpacked and run as a separate program, not linked)
+  MIT License, Copyright (c) 2023-2026 The ggml authors. Source: https://github.com/ggml-org/llama.cpp
+
+modernc.org/sqlite - pure Go SQLite
+  BSD-3-Clause. SQLite itself is in the public domain.
+
+excelize - github.com/xuri/excelize/v2
+  BSD-3-Clause.
+
+go-qrcode - github.com/skip2/go-qrcode
+  MIT License.
+
+Go fonts and golang.org/x/image
+  BSD-3-Clause.
+
+whisper.cpp v1.9.0 and ggml - speech to text (statically linked into the Mac build, voice tag)
+  MIT License, Copyright (c) 2023-2026 The ggml authors. Source: https://github.com/ggml-org/whisper.cpp
+  Whisper model weights (ggml-base.bin, not included) by OpenAI, MIT License.
+
+libopus - Opus audio decoder (statically linked into the Mac build, voice tag)
+  BSD-3-Clause, Copyright Xiph.Org Foundation, Skype Limited and the other contributors named in its COPYING file.
+  Source: https://opus-codec.org

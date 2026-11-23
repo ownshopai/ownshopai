@@ -1,0 +1,389 @@
+{{define "head"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OwnShop AI - {{.Shop}}</title><link rel="stylesheet" href="/style.css">{{if .Refresh}}<meta http-equiv="refresh" content="5">{{end}}</head>
+<body><header><strong>{{.Shop}}</strong>
+{{if not .Setup}}{{range $p := .Nav}}<a href="/{{index $p 0}}" {{if eq (index $p 0) $.Page}}class="on"{{end}}>{{index $p 1}}</a>{{end}}{{end}}
+</header><main>{{if .Msg}}<div class="msg">{{.Msg}}</div>{{end}}{{end}}
+
+{{define "foot"}}</main><footer>{{if not .Setup}}<a href="/settings#start-over">Start over</a><br>{{end}}built with love by <a href="https://deemwar.com">deemwar.com</a><br>Not affiliated with, endorsed by, or sponsored by WhatsApp, Meta or Telegram.</footer></body></html>{{end}}
+
+{{define "steps"}}<p class="steps">{{range $i, $s := .Steps}}{{if and $s.Href (ne (inc $i) $.Step)}}<a href="{{$s.Href}}">{{inc $i}}. {{$s.Label}}</a>{{else}}<span {{if eq (inc $i) $.Step}}class="on"{{end}}>{{inc $i}}. {{$s.Label}}</span>{{end}}{{end}}</p>{{end}}
+
+{{define "setup"}}{{template "head" .}}
+{{template "steps" .}}
+{{if eq .Step 1}}<h1>Your shop</h1>
+<form class="card" method="post" action="/setup/1">
+<label>Shop name</label><input type="text" name="shop_name" value="{{.V.shop_name}}" required autofocus>
+<label>Currency (default INR; for example INR, USD, EUR)</label><input type="text" name="currency" value="{{.V.currency}}">
+{{template "sells" .}}
+<p><button>Next</button></p></form>
+{{else if eq .Step 2}}<h1>Your products</h1>
+<form class="card" method="post" action="/setup/2" enctype="multipart/form-data">
+<p>Upload one Excel file with two sheets:</p>
+<ul class="muted"><li><strong>Products</strong>: sku, name, description, price, stock, keywords</li>
+<li><strong>FAQ</strong>: question, answer, keywords</li>
+<li>optional <strong>Delivery slots</strong>: label, capacity</li></ul>
+<p class="muted">Not sure? <a href="/sample.xlsx">Download the example file</a>, change it, and upload it here.</p>
+<label>Excel file (.xlsx)</label><input type="file" name="file" accept=".xlsx" required>
+<p class="row"><button>Upload and next</button>{{if .Have}}<a href="/setup/3">Keep the {{.Have}} I have</a>{{end}}</p></form>
+<p class="muted">Keep editing this file on your computer any time. The shop reads it again when you save it, and writes the stock back into it.</p>
+{{else if eq .Step 3}}<h1>How customers pay you</h1>
+<form class="card" method="post" action="/setup/3" enctype="multipart/form-data">
+{{template "payment" .}}
+<p class="row"><button>Next</button><a href="/setup/4">Skip for now</a></p></form>
+{{else}}<h1>Connect a chat channel</h1>
+<p class="muted">Customers write to you there and the shop answers them. You can connect more later in Settings.</p>
+{{template "channels" .}}
+<form method="post" action="/setup/done"><p><button>Finish</button></p></form>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "sells"}}<label>What do you sell?</label>
+<div class="paycards sells">{{range $v := (split "products services")}}<label class="paycard"><input type="radio" name="sells" value="{{$v}}" {{if or (eq $v $.V.sells) (and (eq $v "products") (not $.V.sells))}}checked{{end}}><span><strong>{{title $v}}</strong><small>{{if eq $v "products"}}Things you sell and deliver{{else}}Appointments people book{{end}}</small></span></label>{{end}}</div>{{end}}
+
+{{define "range"}}<span class="rng"><select name="{{.F}}" aria-label="From">{{range .Times}}<option value="{{.Val}}" {{if eq .Val $.From}}selected{{end}}>{{.Label}}</option>{{end}}</select><span class="dash">&ndash;</span><select name="{{.T}}" aria-label="To">{{range .Times}}<option value="{{.Val}}" {{if eq .Val $.To}}selected{{end}}>{{.Label}}</option>{{end}}</select><button type="button" class="ghost icon rmr" aria-label="Remove this time range">&times;</button></span>{{end}}
+
+{{define "ovrow"}}<div class="ov"><input type="hidden" name="ov_idx" value="{{.R.Idx}}">
+<input type="date" name="ov_date_{{.R.Idx}}" value="{{.R.Date}}" aria-label="Date">
+<label class="choice"><input type="checkbox" name="ov_off_{{.R.Idx}}" value="1" {{if .R.Off}}checked{{end}}> Unavailable all day</label>
+<div class="ranges">{{range .R.Ranges}}{{template "range" (rng (print "ov_from_" $.R.Idx) (print "ov_to_" $.R.Idx) .From .To $.Times)}}{{end}}</div>
+<button type="button" class="ghost icon add" aria-label="Add a time range">+</button>
+<button type="button" class="ghost icon rmov" aria-label="Delete this date override">&times;</button></div>{{end}}
+
+{{define "hours"}}<input type="hidden" name="hours_form" value="1">
+<div class="simple"{{if .H.Advanced}} hidden{{end}}>
+<fieldset class="field"><legend>Hours</legend>
+<div class="row"><label class="inline">Opens <select name="opens"{{if .H.Advanced}} disabled{{end}}>{{range .H.Times}}<option value="{{.Val}}" {{if eq .Val $.H.Opens}}selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+<label class="inline">Closes <select name="closes"{{if .H.Advanced}} disabled{{end}}>{{range .H.Times}}<option value="{{.Val}}" {{if eq .Val $.H.Closes}}selected{{end}}>{{.Label}}</option>{{end}}</select></label></div></fieldset>
+<fieldset class="field"><legend>Days</legend>
+<div class="chips">{{range .H.Days}}<label class="chip"><input type="checkbox" name="day" value="{{.Name}}" {{if .On}}checked{{end}}{{if $.H.Advanced}} disabled{{end}}><span>{{.Name}}</span></label>{{end}}</div></fieldset></div>
+<details class="adv" id="adv"{{if .H.Advanced}} open{{end}}><summary>Advanced</summary>
+{{if .Picked}}<fieldset class="field"><legend>More services</legend>
+<div id="svcs">{{range $i, $s := .Services}}{{if $i}}{{template "svcrow" (svcrow $i $s.Name $s.Minutes $s.Price $.Cur $.H.Durations)}}{{end}}{{end}}</div>
+<template id="svctpl">{{template "svcrow" (svcrow -1 "" 30 0.0 .Cur .H.Durations)}}</template>
+<p><button type="button" class="ghost" id="addsvc">+ Add service</button></p></fieldset>{{end}}
+<fieldset class="field"><legend>Weekly hours</legend>
+<div class="week">{{range $d := .H.Week}}<div class="wday" data-day="{{.Name}}">
+<label class="toggle"><input type="checkbox" name="day_on" value="{{.Name}}" {{if .On}}checked{{end}}><span class="sw" aria-hidden="true"></span><span class="dname">{{.Name}}</span></label>
+<div class="ranges">{{range .Ranges}}{{template "range" (rng (print "from_" $d.Name) (print "to_" $d.Name) .From .To $.H.Times)}}{{end}}</div>
+<span class="unavail">Unavailable</span>
+<span class="dacts"><button type="button" class="ghost icon add" aria-label="Add a time range to {{.Name}}">+</button><button class="ghost link copy" name="copy_from" value="{{.Name}}">Copy to all days</button></span></div>
+{{end}}</div></fieldset>
+<fieldset class="field"><legend>Date overrides</legend>
+<p class="muted">Holidays or special hours on one date.</p>
+<div id="ovs">{{range .H.Overrides}}{{template "ovrow" (ovrow . $.H.Times)}}{{end}}</div>
+<template id="ovtpl">{{template "ovrow" (ovrow .H.Blank .H.Times)}}</template>
+<noscript>{{template "ovrow" (ovrow .H.Blank .H.Times)}}</noscript>
+<p><button type="button" class="ghost" id="addov">+ Add a date override</button></p></fieldset>
+<fieldset class="field"><legend>Slot length</legend>
+<div class="seg">{{range .H.Slots}}<label><input type="radio" name="slot_minutes" value="{{.}}" {{if eq . $.H.Slot}}checked{{end}}><span>{{.}} min</span></label>{{end}}</div></fieldset>
+<fieldset class="field"><legend>Customers can book up to</legend>
+<div class="seg">{{range .H.Aheads}}<label><input type="radio" name="days_ahead" value="{{.Val}}" {{if eq .Val $.H.Ahead}}checked{{end}}><span>{{.Label}}</span></label>{{end}}</div></fieldset>
+<fieldset class="field"><legend>Minimum notice</legend>
+<div class="seg">{{range .H.Notices}}<label><input type="radio" name="min_notice" value="{{.Val}}" {{if eq .Val $.H.Notice}}checked{{end}}><span>{{.Label}}</span></label>{{end}}</div></fieldset>
+<fieldset class="field"><legend>Time between bookings</legend>
+<div class="seg">{{range .H.Buffers}}<label><input type="radio" name="buffer_minutes" value="{{.Val}}" {{if eq .Val $.H.Buffer}}checked{{end}}><span>{{.Label}}</span></label>{{end}}</div></fieldset>
+<fieldset class="field"><legend>Most bookings a day</legend>
+<div class="seg">{{range .H.MaxDays}}<label><input type="radio" name="max_per_day" value="{{.Val}}" {{if eq .Val $.H.MaxDay}}checked{{end}}><span>{{.Label}}</span></label>{{end}}</div></fieldset>
+</details>
+<p class="preview" id="preview" aria-live="polite">{{.H.Summary}}</p>
+<script>(function(){var f=document.currentScript.closest('form');if(!f)return;
+function q(s,e){return Array.prototype.slice.call((e||f).querySelectorAll(s))}
+function txt(s){return s.options[s.selectedIndex].text}
+function rt(row){return q('.ranges .rng',row).map(function(r){var s=r.querySelectorAll('select');return txt(s[0])+'–'+txt(s[1])}).join(', ')}
+function on(row){return row.querySelector('input[name=day_on]').checked}
+function lab(n){var c=f.querySelector('input[name='+n+']:checked');return c?c.parentNode.textContent.trim():''}
+function val(n){var c=f.querySelector('input[name='+n+']:checked');return c?c.value:'0'}
+function simple(){var o=f.querySelector('select[name=opens]');return o&&!o.disabled}
+function up(){var rows=q('.wday'),g=[];if(simple()){var ds=q('input[name=day]').filter(function(c){return c.checked}).map(function(c){return c.value}),t=txt(f.querySelector('select[name=opens]'))+'\u2013'+txt(f.querySelector('select[name=closes]'));
+var W=q('input[name=day]').map(function(c){return c.value}),on=W.map(function(d){return ds.indexOf(d)>=0});for(var i=0;i<7;i++){if(!on[i])continue;var j=i;while(j<6&&on[j+1])j++;g.push(W[i]+(j-i>=2?'\u2013'+W[j]:j>i?', '+W[j]:'')+' '+t);i=j}rows=[]}
+for(var i=0;i<7;i++){if(!on(rows[i]))continue;var t=rt(rows[i]),j=i;while(j<6&&on(rows[j+1])&&rt(rows[j+1])==t)j++;
+var n=rows[i].dataset.day+(j-i>=2?'–'+rows[j].dataset.day:j>i?', '+rows[j].dataset.day:'');g.push(n+' '+t);i=j}
+var p=document.getElementById('preview');if(!g.length){p.textContent='Every day is unavailable: switch on at least one day.';return}
+var s=g.join('; ')+' · every '+lab('slot_minutes')+', up to '+lab('days_ahead')+' ahead';
+if(val('min_notice')!='0')s+=' · '+lab('min_notice')+' notice';if(val('buffer_minutes')!='0')s+=' · '+val('buffer_minutes')+' min between bookings';
+if(val('max_per_day')!='0')s+=' · at most '+val('max_per_day')+' a day';var o=q('#ovs .ov').filter(function(x){return x.querySelector('input[type=date]').value}).length;
+if(o)s+=' · '+o+' date override'+(o>1?'s':'');p.textContent=s}
+function addRange(box){var rs=q('.rng',box),last=rs[rs.length-1];if(!last)return;var c=last.cloneNode(true),os=last.querySelectorAll('select'),cs=c.querySelectorAll('select');
+var i=os[1].selectedIndex;cs[0].selectedIndex=i;cs[1].selectedIndex=Math.min(i+2,cs[1].options.length-1);box.appendChild(c)}
+var n=0;f.addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!f.contains(b))return;var row=b.closest('.wday,.ov');
+if(b.classList.contains('add')){var cb=row.querySelector('input[name=day_on]'),ob=row.querySelector('input[name^=ov_off_]');if(cb&&!cb.checked)cb.checked=true;else if(ob&&ob.checked)ob.checked=false;else addRange(row.querySelector('.ranges'))}
+else if(b.classList.contains('rmr')){var box=b.closest('.ranges');if(q('.rng',box).length>1)b.closest('.rng').remove();else{var d=row.querySelector('input[name=day_on]'),o=row.querySelector('input[name^=ov_off_]');if(d)d.checked=false;if(o)o.checked=true}}
+else if(b.classList.contains('copy')){e.preventDefault();var src=q('.rng',row),st=on(row);q('.wday').forEach(function(w){if(w===row)return;w.querySelector('input[name=day_on]').checked=st;var box=w.querySelector('.ranges');box.innerHTML='';
+src.forEach(function(r){var c=r.cloneNode(true),os=r.querySelectorAll('select'),cs=c.querySelectorAll('select');cs[0].name='from_'+w.dataset.day;cs[1].name='to_'+w.dataset.day;cs[0].selectedIndex=os[0].selectedIndex;cs[1].selectedIndex=os[1].selectedIndex;box.appendChild(c)})});
+var t=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=t},1200)}
+else if(b.classList.contains('rmov'))row.remove();
+else if(b.id==='addov'){document.getElementById('ovs').insertAdjacentHTML('beforeend',document.getElementById('ovtpl').innerHTML.replace(/__o__/g,'n'+(n++)));var d=document.getElementById('ovs').lastElementChild.querySelector('input[type=date]');d.focus();if(d.showPicker)try{d.showPicker()}catch(_){}}
+else return;up()});
+var adv=document.getElementById('adv');adv.addEventListener('toggle',function(){var sv=q('.simple select,.simple input');
+if(adv.open&&simple()){var o=f.querySelector('select[name=opens]'),c=f.querySelector('select[name=closes]');q('.wday').forEach(function(w){var d=w.dataset.day;
+w.querySelector('input[name=day_on]').checked=f.querySelector('input[name=day][value='+d+']').checked;var rs=q('.rng',w);rs.slice(1).forEach(function(r){r.remove()});var ss=rs[0].querySelectorAll('select');ss[0].value=o.value;ss[1].value=c.value});
+sv.forEach(function(x){x.disabled=true});f.querySelector('.simple').hidden=true}
+else if(!adv.open&&!f.querySelector('.simple').dataset.locked){sv.forEach(function(x){x.disabled=false});f.querySelector('.simple').hidden=false}up()});
+{{if .H.Advanced}}f.querySelector('.simple').dataset.locked='1';{{end}}
+f.addEventListener('change',up);f.addEventListener('input',up);up()})()</script>{{end}}
+
+{{define "biztype"}}{{template "head" .}}
+{{template "steps" .}}
+{{if .Picked}}<h1>Your bookings</h1>
+<form class="card" method="post" action="/setup/hours" id="svcform">
+<p class="muted">Defaults for your business: change anything, then continue.</p>
+<fieldset class="field"><legend>Service</legend>
+<div class="svcmain">{{if .Services}}{{with index .Services 0}}{{template "svcrow" (svcrow 0 .Name .Minutes .Price $.Cur $.H.Durations)}}{{end}}{{else}}{{template "svcrow" (svcrow 0 "" 30 0.0 .Cur .H.Durations)}}{{end}}</div></fieldset>
+{{template "hours" .}}
+<p class="row"><button class="big">Looks good, continue</button><a href="/setup/type">Choose a different business type</a></p></form>
+<script>(function(){var n=document.querySelectorAll('#svcs .svc').length+1;
+document.getElementById('addsvc').onclick=function(){var t=document.getElementById('svctpl').innerHTML.replace(/__i__/g,'n'+(n++));document.getElementById('svcs').insertAdjacentHTML('beforeend',t);var r=document.getElementById('svcs').lastElementChild;r.querySelector('input[type=text]').focus()};
+document.getElementById('svcs').addEventListener('click',function(e){if(e.target.classList.contains('rm'))e.target.closest('.svc').remove()})})()</script>
+{{else}}<h1>What kind of business?</h1>
+<div class="card presets">{{range .Presets}}<form method="post" action="/setup/type"><button class="big{{if eq .Key $.V.biz_type}} on{{end}}" name="preset" value="{{.Key}}">{{.Label}}</button></form>{{end}}</div>
+<p class="muted">Each type fills in its usual services, hours and slot length. You only click OK.</p>{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "calitem"}}{{if eq .Kind "open"}}{{else if eq .Kind "now"}}{{else if eq .Kind "booked"}}{{if le .Span 2}}<span class="line"><a class="who" href="/orders#order-{{.Busy.OrderID}}">{{.Busy.Name}}</a> <span class="what">{{.Busy.Service}} · {{.Time}}</span></span>{{else}}<a class="who" href="/orders#order-{{.Busy.OrderID}}">{{.Busy.Name}}</a>
+<span class="what">{{.Busy.Service}} · {{.Time}}&ndash;{{.Until}} · <a href="/orders#order-{{.Busy.OrderID}}">#{{.Busy.OrderID}}</a></span>{{end}}
+<span class="acts"><a href="/calendar?week={{.Week}}&day={{.Day}}&move={{.Busy.OrderID}}">Move</a>
+<form method="post" action="/calendar/cancel" onsubmit="return confirm('Cancel booking {{.Busy.OrderID}}? The time becomes free and the customer is told.')"><input type="hidden" name="week" value="{{.Week}}"><input type="hidden" name="day" value="{{.Day}}"><input type="hidden" name="order" value="{{.Busy.OrderID}}"><button class="lnk">Cancel booking</button></form></span>
+{{else}}<span class="t">{{.Time}}</span>{{if eq .Kind "blocked"}} <span class="tag">Removed</span>
+<form method="post" action="/calendar/block"><input type="hidden" name="week" value="{{.Week}}"><input type="hidden" name="day" value="{{.Day}}"><input type="hidden" name="at" value="{{.At}}"><input type="hidden" name="on" value="0"><button class="lnk">Restore</button></form>
+{{else if .MoveTo}}<form method="post" action="/calendar/move"><input type="hidden" name="week" value="{{.Week}}"><input type="hidden" name="day" value="{{.Day}}"><input type="hidden" name="order" value="{{.Move}}"><input type="hidden" name="at" value="{{.At}}"><button class="lnk strong">Move here</button></form>
+{{else if eq .Kind "free"}}<span class="acts"><a href="/calendar?week={{.Week}}&day={{.Day}}&at={{.At}}#book">Book</a>
+<form method="post" action="/calendar/block"><input type="hidden" name="week" value="{{.Week}}"><input type="hidden" name="day" value="{{.Day}}"><input type="hidden" name="at" value="{{.At}}"><input type="hidden" name="on" value="1"><button class="lnk" title="Remove this slot on this date only">Remove</button></form></span>{{end}}{{end}}{{end}}
+
+{{define "calendar"}}{{template "head" .}}
+<div class="calbar"><h1>Calendar</h1><span class="range">{{.Range}}</span>
+<span class="nav"><a class="btn" href="/calendar?week={{.Prev}}" aria-label="Previous week">&lsaquo;</a><a class="btn" href="/calendar">Today</a><a class="btn" href="/calendar?week={{.Next}}" aria-label="Next week">&rsaquo;</a></span></div>
+{{if .Move}}<p class="row"><span class="pill">Moving booking {{.Move}}: pick a free time</span><a href="/calendar?week={{.Week}}&day={{.Day}}">Stop moving</a></p>{{end}}
+<nav class="daytabs">{{range .Days}}<a href="/calendar?week={{$.Week}}&day={{.Date}}{{if $.Move}}&move={{$.Move}}{{end}}" class="{{if .Sel}}on{{end}}{{if .Today}} today{{end}}">{{.Short}}</a>{{end}}</nav>
+<div class="card calwrap"><div class="calhead">
+<div></div>{{range .Days}}<div class="dhead c{{.Col}}{{if .Sel}} sel{{end}}{{if .Today}} today{{end}}"><div class="dl">{{.Label}}</div>
+{{if not .Past}}<form method="post" action="/calendar/day"><input type="hidden" name="week" value="{{$.Week}}"><input type="hidden" name="day" value="{{$.Day}}"><input type="hidden" name="date" value="{{.Date}}">
+{{if .Closed}}<span class="tag">Unavailable</span> <button class="lnk" name="open" value="1">Reopen</button>{{else if .Special}}<span class="tag">Special hours</span> <button class="lnk" name="open" value="1">Usual hours</button>{{else if .Open}}<button class="lnk" onclick="return confirm('Close {{.Label}} for bookings?')">Close this day</button>{{else}}<span class="tag">Unavailable</span>{{end}}</form>
+{{else if not .Open}}<span class="tag">Unavailable</span>{{end}}</div>{{end}}</div>
+<div class="calgrid" style="grid-template-rows:repeat({{.Rows}}, var(--u))">
+{{range .Labels}}<div class="hl" style="grid-row:{{.Row}} / span 4">{{.Text}}</div>{{end}}
+{{range .Days}}<div class="dcol c{{.Col}}{{if .Sel}} sel{{end}}{{if .Today}} today{{end}}{{if not .Open}} off{{end}}" style="grid-row:1 / span {{$.Rows}}"></div>{{end}}
+{{range .Items}}<div class="it {{.Kind}} c{{.Col}}{{if .Sel}} sel{{end}}" style="grid-row:{{.Row}} / span {{.Span}}">{{template "calitem" .}}</div>
+{{end}}</div></div>
+<p class="muted">Remove takes one time off that date only. Close this day marks the whole date unavailable. Your usual hours are in <a href="/settings">Settings</a>.</p>
+<h2 id="book">Add a walk-in or phone booking</h2>
+<form class="card" method="post" action="/calendar/book"><input type="hidden" name="week" value="{{.Week}}"><input type="hidden" name="day" value="{{.Day}}">
+<label>Name</label><input type="text" name="name" required>
+<label>Phone (optional)</label><input type="text" name="phone">
+<label>Service</label><select name="service">{{range .Services}}<option value="{{.SKU}}">{{.Name}} ({{.Minutes}} min)</option>{{end}}</select>
+<label>Time (YYYY-MM-DD HH:MM)</label><input type="text" name="at" value="{{.At}}" placeholder="2026-11-23 10:00" required>
+<p><button>Book</button></p></form>
+{{template "foot" .}}{{end}}
+
+{{define "svcrow"}}<div class="svc"><input type="hidden" name="svc_idx" value="{{.I}}">
+<input type="text" name="svc_name_{{.I}}" value="{{.Name}}" placeholder="Service name" aria-label="Service name" class="svcname">
+<div class="seg small" role="radiogroup" aria-label="Duration">{{range .Durs}}<label><input type="radio" name="svc_min_{{$.I}}" value="{{.}}" {{if eq . $.Min}}checked{{end}}><span>{{.}}</span></label>{{end}}<span class="muted">min</span></div>
+<span class="price"><span class="muted">{{.Cur}}</span><input type="number" name="svc_price_{{.I}}" value="{{money .Price}}" min="0" step="0.01" aria-label="Price"></span>
+<button type="button" class="ghost rm" aria-label="Remove {{.Name}}">&times;</button></div>{{end}}
+
+{{define "payment"}}<div id="payment"></div>
+{{if and .Pay.Set (not .Setup)}}<div class="payset">{{range .Pay.Set}}<div class="row"><strong>{{.Label}}</strong><span class="muted">{{.Detail}}</span>
+<a href="/settings?pay={{.Key}}#payment">Edit</a><button class="lnk" name="pay_remove" value="{{.Key}}">Remove</button></div>{{end}}
+{{if .Pay.Next}}<p><a href="/settings?pay={{.Pay.Next}}#payment">+ Add another way to pay</a></p>{{end}}</div>{{end}}
+<div class="paycards" role="radiogroup" aria-label="How customers pay">{{range .Pay.Methods}}<label class="paycard"><input type="radio" name="pay_method" value="{{.Key}}" {{if eq .Key $.Pay.Method}}checked{{end}}><span><strong>{{.Label}}</strong><small>{{.Detail}}</small></span></label>{{end}}</div>
+<div class="pp pp-upi"><label>UPI ID</label><input type="text" name="upi_id" value="{{.V.upi_id}}" placeholder="shop@okhdfc">
+<p class="muted">Each order gets its own UPI QR with the amount filled in.</p>
+<details class="mini"><summary>change name</summary><label>Name customers see (default: your shop name)</label><input type="text" name="upi_name" value="{{.V.upi_name}}"></details></div>
+<div class="pp pp-qr"><label>QR image (.png or .jpg)</label><input type="file" name="qr" accept="image/png,image/jpeg">
+{{if .V.qr_path}}<p><img src="/payment-qr" alt="payment QR" style="max-width:140px;border:1px solid var(--line)"></p>{{end}}
+<p class="muted">The QR from your bank or wallet app: PayNow, PromptPay, Pix, GiroCode...</p></div>
+<div class="pp pp-link"><label>Payment link</label><input type="url" name="pay_link" value="{{.V.pay_link}}" placeholder="https://...">
+<p class="muted">PayPal.me, Stripe, Revolut, Wise or your bank: any link.</p></div>
+<div class="pp pp-bank"><label>Bank transfer details</label><textarea name="pay_note" rows="2" placeholder="Bank: X, Account: Y, IFSC/IBAN: Z">{{.V.pay_note}}</textarea>
+<p class="muted">Sent with the total; you click Payment received when it arrives.</p></div>
+{{if .Setup}}<p class="muted"><a href="/setup/3?pay={{.Pay.Next}}">+ Add another way to pay</a> after saving this one: the ones you set are all kept.</p>{{end}}
+{{end}}
+
+{{define "channels"}}
+<div class="card">{{range .Chans}}<div class="row"><strong>{{.Label}}</strong><span class="pill">{{.Status}}</span>
+{{if .Linkable}}<form method="post" action="/channels/whatsapp/{{.Account}}/link?ret={{$.Ret}}"><button class="ghost">Link again</button></form>{{end}}
+{{if eq .Name "whatsapp"}}<form method="post" action="/channels/whatsapp/{{.Account}}/remove?ret={{$.Ret}}"><button class="ghost">Remove</button></form>{{end}}</div>
+{{if .QR}}<p><img src="/channels/whatsapp/{{.Account}}/qr.png" alt="pairing code" width="300" height="300"></p><p class="muted">On the phone: WhatsApp > Settings > Linked devices > Link a device, then point the camera at this code. The code refreshes every few seconds; scan the latest one.</p>{{end}}
+{{else}}<p class="muted">No chat channel connected yet.</p>{{end}}</div>
+<div class="card"><form class="row" method="post" action="/channels/whatsapp?ret={{.Ret}}"><input type="hidden" name="account" value="{{.NextWA}}"><button>Connect WhatsApp</button></form>
+<p class="warn">WhatsApp is connected through an unofficial client. Use a spare number, at your own risk: WhatsApp may block numbers that use unofficial clients.</p></div>
+<form class="card" method="post" action="/channels/telegram?ret={{.Ret}}">
+<p><strong>Connect Telegram</strong> (official, free)</p>
+<ol class="muted"><li>In Telegram, open a chat with <strong>@BotFather</strong>.</li><li>Send <code>/newbot</code>, then choose a name and a username that ends in "bot".</li><li>BotFather replies with a token like <code>123456:ABC...</code>. Copy it and paste it here.</li></ol>
+{{if .TG}}<p>Connected bot token: <code>{{.TG}}</code></p>{{end}}
+<div class="row"><input type="password" name="token" placeholder="123456:ABC..." style="flex:1" autocomplete="off"><button>Connect Telegram</button>{{if .TG}}<button class="ghost" name="remove" value="1">Remove</button>{{end}}</div></form>
+{{end}}
+
+{{define "settings"}}{{template "head" .}}
+<h1>Settings</h1>
+<form class="card" method="post" action="/settings" enctype="multipart/form-data">
+<label>Shop name</label><input type="text" name="shop_name" value="{{.V.shop_name}}">
+<label>Currency</label><input type="text" name="currency" value="{{.V.currency}}">
+<label>Address line (on invoice and receipt)</label><input type="text" name="address" value="{{.V.address}}">
+<label>Receipt footer</label><input type="text" name="receipt_footer" value="{{.V.receipt_footer}}">
+{{template "sells" .}}
+{{if and .V.sells (ne .V.sells "products")}}<h2>Bookings (services)</h2>
+{{template "hours" .}}{{end}}
+<h2>Payment</h2>
+{{template "payment" .}}
+<h2>AI shopping agents (UCP)</h2>
+<label><input type="checkbox" name="ucp_enabled" value="on" {{if eq .V.ucp_enabled "on"}}checked{{end}}> Let AI agents shop here</label><input type="hidden" name="ucp_enabled" value="">
+<p class="muted">Turns on the Universal Commerce Protocol on this computer only (<code>/.well-known/ucp</code>, MCP at <code>/ucp/mcp</code>): an agent can search products, book and place orders, which wait for your Payment received like any other.</p>
+<h2>Sending limits</h2>
+<label>Daily send cap (messages per day, per connected number or bot)</label><input type="number" name="daily_send_cap" min="0" value="{{if .V.daily_send_cap}}{{.V.daily_send_cap}}{{else}}200{{end}}">
+<p class="muted">The shop only answers people who wrote first, plus updates on their own order. It pauses while "typing", sends at most one message every 2 seconds per chat, and never broadcasts.</p>
+<p><button>Save</button></p></form>
+<h2>Chat channels</h2>
+{{template "channels" .}}
+<h2 id="start-over">Start over</h2>
+<div class="card"><p class="muted">Done testing? A backup of your data is saved first in the backups folder, so nothing is lost for good.</p>
+<div class="row"><a class="btn" href="/start-over/clear">Clear test data</a><a class="btn" href="/start-over/reset">Delete this shop and start a new one</a></div></div>
+{{template "foot" .}}{{end}}
+
+{{define "startover"}}{{template "head" .}}
+{{if eq .Kind "clear"}}<h1>Clear test data</h1>
+<div class="card"><p>This deletes every order, customer, chat message, hand-off, booking and blocked slot, and the invoice and receipt images. Order numbers start again at 1042.</p>
+<p class="muted">Kept: products and services, photos, settings, payment details, WhatsApp and Telegram.</p></div>
+{{else}}<h1>Delete this shop and start a new one</h1>
+<div class="card"><p>This deletes everything in the shop: orders, customers, chats, bookings, products and services, photos, the payment QR and all settings. Then you set up a new shop from step 1.</p>
+<p class="muted">Kept: the shop's address on this computer (port), and WhatsApp and Telegram unless you tick the box below.</p></div>{{end}}
+<form class="card" method="post" action="/start-over/{{.Kind}}">
+<p class="muted">A backup is written to <code>{{.Backups}}</code> first.</p>
+{{if eq .Kind "reset"}}<label class="choice"><input type="checkbox" name="disconnect" value="on"> Also disconnect WhatsApp and Telegram</label>{{end}}
+<label for="confirm">Type the shop name ({{.Shop}}) or CLEAR to confirm</label><input type="text" id="confirm" name="confirm" autocomplete="off" required autofocus>
+<p class="row"><button>{{if eq .Kind "clear"}}Clear test data{{else}}Delete this shop{{end}}</button><a href="/settings">Cancel</a></p></form>
+{{template "foot" .}}{{end}}
+
+{{define "products"}}{{template "head" .}}
+<h1>{{if eq .Sells "services"}}Services{{else}}Products{{end}}</h1>
+{{if .Ignored}}<p class="warn">{{.Ignored}}</p>{{end}}
+<div class="card"><p>Your file: <code>{{.File.Path}}</code></p>
+{{if .File.Err}}<p class="warn">{{.File.Err}}</p>{{end}}
+<p class="muted">{{if .File.Loaded}}Read at {{.File.Loaded}}: {{plural .File.Products "row"}}, {{plural .File.FAQ "question"}}.{{else}}Not read yet.{{end}} Edit the file on your computer and save it; the shop reads it again by itself. Stock is written back into it after each order.</p>
+<form class="row" method="post" action="/products/reload"><button>I updated my file</button></form>
+<form class="row" method="post" action="/products/upload" enctype="multipart/form-data" style="margin-top:8px"><input type="file" name="file" accept=".xlsx"><button class="ghost">Replace with another file</button></form></div>
+<div class="card"><p class="muted">Photos: put a file named after the product ID in <code>{{.ImagesDir}}</code> (for example <code>HONEY-01.jpg</code>), or upload one below. Customers see it when they search, add to their order, and on the invoice.</p>
+<table><tr><th>Photo</th><th>Name</th><th>Type</th><th>Price ({{.Cur}})</th><th>Stock</th></tr>
+{{range .Products}}<tr><td class="photo">{{if index $.Photos .SKU}}<img src="/products/{{.SKU}}/photo" alt="" width="64" height="64">{{else}}<span class="muted">none</span>{{end}}
+<form method="post" action="/products/{{.SKU}}/photo" enctype="multipart/form-data"><input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" onchange="this.form.submit()" aria-label="Photo for {{.Name}}"></form></td>
+<td>{{.Name}}<div class="muted">{{.SKU}} · {{.Description}}</div></td>
+{{if .IsService}}<td>service</td><td colspan="2"><form class="row" method="post" action="/products/service"><input type="hidden" name="name" value="{{.Name}}"><input type="text" name="price" value="{{money .Price}}" aria-label="Price"><input type="text" name="minutes" value="{{.Minutes}}" aria-label="Minutes"> min<button class="ghost">Save</button></form></td>
+{{else}}<td>product</td><td>{{money .Price}}</td><td>{{.Stock}}</td>{{end}}</tr>
+{{else}}<tr><td colspan="5" class="muted">No products yet.</td></tr>{{end}}</table></div>
+{{template "foot" .}}{{end}}
+
+{{define "orders"}}{{template "head" .}}
+<h1>Orders</h1>
+<p class="muted">Also in <code>{{.OrdersCSV}}</code> (opens in Excel), kept up to date. <a href="/orders.csv">Download</a></p>
+{{range $o := .Orders}}<div class="card" id="order-{{$o.ID}}">
+<div class="row"><strong>Order {{$o.ID}}</strong><span class="pill">{{$o.StatusLabel}}</span>{{if eq $o.Channel "ucp"}}<span class="pill">From an AI agent (UCP)</span>{{end}}
+<span class="muted">{{$o.Customer.Name}} {{$o.Customer.Phone}}{{if $o.Customer.Channel}} ({{$o.Customer.Channel}}){{end}} - {{$o.Created}}{{if $o.SlotLabel}} - delivery {{$o.SlotLabel}}{{end}}</span></div>
+<table><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Amount</th></tr>
+{{range $o.Items}}<tr><td>{{.Name}}</td><td>{{.Qty}}</td><td>{{money .Price}}</td><td>{{money (mulf .Qty .Price)}}</td></tr>{{end}}
+<tr><td colspan="3"><strong>Total</strong> <span class="muted">{{$o.Invoice}}{{if $o.Paid}} paid {{$o.PaidAt}}{{else}} unpaid{{end}}</span></td><td><strong>{{$.Cur}} {{money $o.Total}}</strong></td></tr></table>
+{{if and (ne $o.Status "delivered") (ne $o.Status "cancelled")}}<form class="row" method="post" action="/orders/{{$o.ID}}/status" style="margin-top:12px">
+{{range steps}}<button name="to" value="{{.}}" {{if ne . $o.Next}}disabled{{end}}>{{label .}}</button>{{end}}
+<button class="ghost" name="to" value="cancelled" onclick="return confirm('Cancel order {{$o.ID}}? Its items go back in stock.')">Cancel</button></form>{{end}}
+{{if $o.BookAt}}<form class="row" method="post" action="/orders/{{$o.ID}}/book" style="margin-top:8px"><span class="muted">Booked for</span><input type="datetime-local" name="at" value="{{$o.BookInput}}"><button class="ghost">Change time</button></form>{{end}}
+<form class="row" method="post" action="/orders/{{$o.ID}}/deliver" style="margin-top:8px"><span class="muted">Deliver to{{if $o.MapURL}} (<a href="{{$o.MapURL}}" target="_blank">map</a>){{end}}</span><input type="text" name="deliver_to" value="{{$o.DeliverTo}}" placeholder="No address yet" style="flex:1"><button class="ghost">Save</button></form>
+{{if $o.Receipt}}<p class="muted">Receipt: <a href="/orders/{{$o.ID}}/receipt.png" target="_blank">view</a> - <a href="/orders/{{$o.ID}}/receipt.png?download=1">download</a></p>{{end}}
+<form class="row" method="post" action="/orders/{{$o.ID}}/reply" style="margin-top:8px"><input type="text" name="text" placeholder="Reply to {{$o.Customer.Name}}" style="flex:1"><button class="ghost">Send</button></form>
+</div>{{else}}<div class="card muted">No orders yet.</div>{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "chats"}}{{template "head" .}}
+<h1>Chats</h1>
+<h2>Waiting for you</h2><p class="muted">Messages the shop was not sure about. Reply by hand.</p>
+{{range .Handoffs}}<form class="card" method="post" action="/handoffs/{{.ID}}">
+<div class="row"><strong>{{.Phone}}</strong><span class="muted">{{.TS}} - {{.Reason}}</span></div>
+<p>{{.Text}}</p><div class="row"><input type="text" name="text" placeholder="Your reply" style="flex:1"><button>Send and close</button><button class="ghost" name="text" value="">Close</button></div></form>
+{{else}}<div class="card muted">Nothing waiting.</div>{{end}}
+<h2>Recent messages</h2>
+<div class="card"><table class="log"><tr><th>Time</th><th>Customer</th><th></th><th>Message</th></tr>
+{{range .Log}}<tr><td class="muted">{{.TS}}</td><td>{{.Phone}}</td><td class="muted">{{.Direction}}</td><td>{{.Text}}</td></tr>{{end}}</table></div>
+{{template "foot" .}}{{end}}
+
+{{define "users"}}{{template "head" .}}
+<h1>Users</h1>
+<h2>Test customers (web chat)</h2>
+<p class="muted">Test the shop without a phone: a test customer logs in at <a href="/webchat">/webchat</a> on this computer and chats like a WhatsApp customer. Orders and chats show up like real ones.</p>
+<div class="card">{{range .WebUsers}}<div class="row"><strong>{{.Username}}</strong><span class="muted">{{.DisplayName}} - added {{.Created}}</span>
+<form method="post" action="/users/web/{{.ID}}/delete"><button class="ghost">Delete</button></form></div>
+{{else}}<p class="muted">No test customers yet.</p>{{end}}</div>
+<form class="card" method="post" action="/users/web"><p><strong>Add a test customer</strong></p>
+<div class="row"><input type="text" name="username" placeholder="username" required autocomplete="off"><input type="password" name="password" placeholder="password" required autocomplete="new-password"><input type="text" name="display_name" placeholder="display name"><button>Add</button></div>
+<p class="muted">For testing only: use made-up names and passwords.</p></form>
+<h2>Customers</h2>
+<p class="muted">Everyone who wrote to the shop, on every channel. A blocked customer gets no reply at all; their past orders stay on the Orders page.</p>
+<div class="card"><table class="log"><tr><th>Customer</th><th>Name</th><th>Channel</th><th>Orders</th><th></th></tr>
+{{range .Customers}}<tr><td>{{.Phone}}</td><td>{{.Name}}</td><td class="muted">{{.Channel}}</td><td>{{.Orders}}</td>
+<td>{{if .Blocked}}<span class="pill">blocked</span> <form method="post" action="/users/{{.ID}}/unblock" style="display:inline"><button class="ghost">Unblock</button></form>{{else}}<form method="post" action="/users/{{.ID}}/block" style="display:inline"><button class="ghost">Block</button></form>{{end}}</td></tr>
+{{else}}<tr><td colspan="5" class="muted">No customers yet.</td></tr>{{end}}</table></div>
+{{template "foot" .}}{{end}}
+
+{{define "webchat"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web chat - {{.Shop}}</title><link rel="stylesheet" href="/style.css">
+<style>
+.wc { max-width:560px; margin:0 auto; display:flex; flex-direction:column; height:calc(100vh - 120px); }
+.wcmsgs { flex:1; overflow-y:auto; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--win); display:flex; flex-direction:column; gap:6px; }
+.b { max-width:80%; padding:8px 10px; border-radius:10px; white-space:pre-wrap; word-wrap:break-word; font-size:14px; }
+.b.in { align-self:flex-end; background:var(--acc); color:var(--onacc); }
+.b.out { align-self:flex-start; background:var(--field); border:1px solid var(--line); }
+.b img { display:block; max-width:100%; border-radius:6px; margin-bottom:4px; }
+.b small { display:block; opacity:.7; font-size:11px; margin-top:2px; }
+.wcbar { display:flex; gap:6px; margin-top:8px; }
+.wcbar input { flex:1; }
+</style></head>
+<body><header><strong>{{.Shop}}</strong>{{if .In}}<span class="muted">Web chat as {{.User.DisplayName}} ({{.User.Username}})</span> <a href="#" id="logout">Log out</a>{{end}}</header><main>
+{{if .In}}<div class="wc"><div class="wcmsgs" id="msgs"></div>
+<form class="wcbar" id="f"><input type="text" id="t" placeholder="Type a message" autocomplete="off" autofocus><button>Send</button></form>
+<div class="wcbar"><button type="button" class="ghost" id="loc">Share location</button><input type="text" id="ll" placeholder="or type lat,lng"><button type="button" class="ghost" id="llsend">Send location</button></div>
+<p class="muted" id="err"></p></div>
+<script>
+let last = 0;
+const box = document.getElementById('msgs'), err = document.getElementById('err');
+function post(u, b) { return fetch(u, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); }
+function add(m) {
+  const d = document.createElement('div'); d.className = 'b ' + m.direction;
+  if (m.image) { const i = document.createElement('img'); i.src = m.image; i.alt = 'image'; d.appendChild(i); }
+  if (m.text) d.appendChild(document.createTextNode(m.text));
+  const s = document.createElement('small'); s.textContent = m.ts; d.appendChild(s);
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+}
+async function poll() {
+  try {
+    const r = await fetch('/webchat/messages?after=' + last);
+    if (r.status === 401) { location.reload(); return; }
+    const j = await r.json();
+    for (const m of j.messages) { add(m); last = m.id; }
+    err.textContent = '';
+  } catch (e) { err.textContent = 'Not connected to the shop.'; }
+}
+async function send(b) { const r = await post('/webchat/send', b); if (!r.ok) err.textContent = (await r.json()).error; poll(); }
+document.getElementById('f').onsubmit = e => { e.preventDefault(); const t = document.getElementById('t'); if (t.value.trim()) { send({text:t.value}); t.value = ''; } };
+document.getElementById('loc').onclick = () => {
+  if (!navigator.geolocation) { err.textContent = 'This browser cannot share location; type lat,lng.'; return; }
+  navigator.geolocation.getCurrentPosition(p => send({lat:p.coords.latitude, lng:p.coords.longitude}), () => { err.textContent = 'Location not available; type lat,lng.'; });
+};
+document.getElementById('llsend').onclick = () => {
+  const p = document.getElementById('ll').value.split(',').map(Number);
+  if (p.length !== 2 || p.some(isNaN)) { err.textContent = 'Type the location as lat,lng, for example 12.9716,77.5946'; return; }
+  send({lat:p[0], lng:p[1]}); document.getElementById('ll').value = '';
+};
+document.getElementById('logout').onclick = async e => { e.preventDefault(); await post('/webchat/logout', {}); location.reload(); };
+poll(); setInterval(poll, 1500);
+</script>
+{{else}}<h1>Web chat</h1>
+<form class="card" id="login" style="max-width:360px"><p class="muted">Log in as a test customer. The shop owner adds test customers on the Users page.</p>
+<label>Username</label><input type="text" id="u" autocomplete="username" required autofocus>
+<label>Password</label><input type="password" id="p" autocomplete="current-password" required>
+<p><button>Log in</button></p><p class="muted" id="err"></p></form>
+<script>
+document.getElementById('login').onsubmit = async e => {
+  e.preventDefault();
+  const r = await fetch('/webchat/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:document.getElementById('u').value, password:document.getElementById('p').value})});
+  if (r.ok) location.reload(); else document.getElementById('err').textContent = (await r.json()).error;
+};
+</script>{{end}}
+</main></body></html>{{end}}

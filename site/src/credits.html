@@ -1,0 +1,45 @@
+<div class="doc-layout" style="grid-template-columns:minmax(0,1fr)">
+<article class="prose credits" style="max-width:860px">
+<h1>Credits</h1>
+<p>OwnShop AI is free and open source under the MIT license (<a href="https://github.com/ownshopai/ownshopai">source code</a>). It is built on the work below. Thank you to everyone who made it.</p>
+
+<h2 id="shipped">Shipped inside the download</h2>
+<table>
+<thead><tr><th>Component</th><th>What it does here</th><th>License</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> (llama-server, b9620)</td><td>Runs the AI model on your computer. Carried inside OwnShop AI and run as a separate program.</td><td>MIT</td></tr>
+<tr><td><a href="https://huggingface.co/Qwen/Qwen3.5-0.8B">Qwen3.5-0.8B</a> by the Qwen team, Alibaba Cloud</td><td>The built-in AI model, as a Q4_K_M GGUF file (<code>qwen35-0.8b-q4km.gguf</code>, about 530 MB).</td><td>Apache 2.0</td></tr>
+<tr><td><a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> v1.9.0 and ggml</td><td>Linked into the Windows and Mac programs.</td><td>MIT</td></tr>
+<tr><td><a href="https://huggingface.co/ggerganov/whisper.cpp">Whisper base model</a> by OpenAI</td><td><code>ggml-base.bin</code>, about 150 MB, included in the download.</td><td>MIT</td></tr>
+<tr><td><a href="https://opus-codec.org">libopus</a></td><td>Audio decoder, linked into the Windows and Mac programs.</td><td>BSD-3-Clause</td></tr>
+<tr><td><a href="https://github.com/openclaw/wacli">wacli</a></td><td>Links a WhatsApp number. Carried inside OwnShop AI and run as a separate program.</td><td>MIT</td></tr>
+<tr><td><a href="https://github.com/tulir/whatsmeow">whatsmeow</a> and go.mau.fi/util</td><td>The WhatsApp Web protocol, used by wacli.</td><td>MPL-2.0</td></tr>
+<tr><td><a href="https://github.com/tulir/libsignal">go.mau.fi/libsignal</a></td><td>Message encryption, used by whatsmeow inside wacli.</td><td>GPL-3.0</td></tr>
+<tr><td><a href="https://github.com/muthuishere/toolnexus">toolnexus</a></td><td>Talks to the model and handles its tool calls.</td><td>MIT</td></tr>
+<tr><td><a href="https://github.com/mark3labs/mcp-go">mcp-go</a></td><td>The MCP endpoint for AI shopping agents (UCP).</td><td>MIT</td></tr>
+<tr><td><a href="https://github.com/xuri/excelize">excelize</a></td><td>Reads and writes your Excel products file.</td><td>BSD-3-Clause</td></tr>
+<tr><td><a href="https://github.com/skip2/go-qrcode">go-qrcode</a></td><td>Makes the payment QR codes.</td><td>MIT</td></tr>
+<tr><td><a href="https://gitlab.com/cznic/sqlite">modernc.org/sqlite</a> (SQLite is public domain)</td><td>The shop's database.</td><td>BSD-3-Clause</td></tr>
+<tr><td><a href="https://go.dev">Go</a>, golang.org/x/crypto, x/image, x/net, x/sys, x/text, and the Go fonts</td><td>The language, password hashing, images, invoices and receipts.</td><td>BSD-3-Clause</td></tr>
+</tbody>
+</table>
+
+<h2 id="services">Services it connects to</h2>
+<table>
+<thead><tr><th>Service</th><th>How</th></tr></thead>
+<tbody>
+<tr><td><a href="https://core.telegram.org/bots/api">Telegram Bot API</a></td><td>The official, free API. Your bot token stays on your computer.</td></tr>
+<tr><td>WhatsApp</td><td>Through wacli, an unofficial WhatsApp Web client. Not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.</td></tr>
+</tbody>
+</table>
+
+<h2 id="build">Used to build it</h2>
+<table>
+<thead><tr><th>Tool</th><th>What for</th><th>License</th></tr></thead>
+<tbody>
+<tr><td><a href="https://ziglang.org">Zig</a></td><td>C compiler for the Windows programs.</td><td>MIT</td></tr>
+</tbody>
+</table>
+<p>The full license texts are in the <a href="https://github.com/ownshopai/ownshopai">source code</a> and in each project linked above.</p>
+</article>
+</div>
