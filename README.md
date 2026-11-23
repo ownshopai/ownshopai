@@ -37,13 +37,16 @@ order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a dom
     time OwnShop AI or the computer restarts.
   - **Free fixed link** `yourname.ownshopai.store`: **coming soon**. The link service it needs is not live yet.
   - **Your own domain**: paste a Cloudflare tunnel token and your hostname; the token is stored locally and never shown again.
-  Customers type a name and phone number (not verified), and the browser remembers them. The chat is a **PWA**: they can
+  Customers type a name and a phone number or an email (not verified), and the browser remembers them. The chat is a **PWA**: they can
   add it to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS
   16.4 or later). Guide: [docs/guides/14-web-chat-link.md](docs/guides/14-web-chat-link.md).
 
 You click **Payment received**, **Packed**, **Shipped**, **Delivered** or **Cancel** on the Orders page, and each click
-messages the customer (Payment received also sends a receipt image). You can **block** a customer on every channel from
-the Users page, and test the whole flow without a phone in the built-in **web chat** (http://localhost:2007/webchat).
+messages the customer (Payment received also sends a receipt image). The **Users** page is one table of every customer
+(WhatsApp, Telegram, web): **Ban** stops replies on every channel, and **Needs support** puts a customer at the top of
+the Chats page (set automatically when the shop hands a message to you). The **FAQ** page adds, edits and deletes the
+questions in your FAQ sheet; the shop answers a new one at once. Test the whole flow without a phone in the built-in
+**web chat** (http://localhost:2007/webchat): type any new name and a password and that test login is made on the spot.
 
 ## Why it costs nothing
 
@@ -156,7 +159,7 @@ it as soon as it can, so it never sells stock you no longer have.
   to you on the Chats page instead of being acted on.
 - **WhatsApp is unofficial** (see the warning above).
 - **The website chat needs the computer on** and online, and Cloudflare carries that traffic, so Cloudflare can see
-  those chats. Phone numbers typed in the web chat are not verified.
+  those chats. Phone numbers and emails typed in the web chat are not verified.
 - Replies are in English for now. The Mac app is not notarized yet.
 
 ## How good is the model?

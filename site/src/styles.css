@@ -67,6 +67,7 @@ a:hover { text-decoration-thickness: 2px; }
 .nav-links a:hover { color: var(--ink); }
 .nav-links .btn { color: var(--accent-ink); }
 @media (max-width: 720px) { .nav-links .hide-sm { display: none; } }
+@media (max-width: 440px) { .nav .wrap { gap: 12px; } .nav-links { gap: 12px; } .nav-links a { font-size: 14px; } .nav-links .btn { padding-left: 10px; padding-right: 10px; } }
 
 /* buttons */
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px;

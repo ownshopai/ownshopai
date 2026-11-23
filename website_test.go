@@ -825,3 +825,32 @@ func TestDeleteShopReleasesFreeLink(t *testing.T) {
 		t.Fatalf("released %d revoked %d", fl.released, fl.revoked)
 	}
 }
+
+func TestPublicSigninWithEmail(t *testing.T) {
+	s, _, h, _ := pubShop(t)
+	bad := &browser{t: t, h: h, ip: "198.51.100.6"}
+	for _, m := range []map[string]string{{"name": "Ana"}, {"name": "Ana", "phone": " ", "email": ""}, {"name": "Ana", "email": "ana"},
+		{"name": "Ana", "email": "ana@nodot"}, {"name": "Ana", "email": "a b@x.com"}, {"name": "Ana", "email": "a@@x.com"}} {
+		if rr, _ := bad.do("POST", "/api/signin", m); rr.Code != 400 {
+			t.Errorf("bad sign-in %v accepted: %d", m, rr.Code)
+		}
+	}
+	a := &browser{t: t, h: h, ip: "198.51.100.7"}
+	if rr, _ := a.do("POST", "/api/signin", map[string]string{"name": "Mia", "email": " mia@example.com "}); rr.Code != 200 {
+		t.Fatalf("email only: %d %s", rr.Code, rr.Body)
+	}
+	if _, me := a.do("GET", "/api/me", nil); me["email"] != "mia@example.com" || me["phone"] != "" {
+		t.Fatalf("me %v", me)
+	}
+	b := &browser{t: t, h: h, ip: "198.51.100.8"}
+	if rr, _ := b.do("POST", "/api/signin", map[string]string{"name": "Bo", "phone": "+15550003333", "email": "bo@example.org"}); rr.Code != 200 {
+		t.Fatalf("both: %d", rr.Code)
+	}
+	us, _ := s.PubUsers()
+	if len(us) != 2 || us[0].Contact() != "+15550003333 · bo@example.org" || us[1].Contact() != "mia@example.com" {
+		t.Fatalf("pub users %+v", us)
+	}
+	if got := s.pubPhones()[us[1].Key()]; got != "mia@example.com" {
+		t.Fatalf("owner pages see %q", got)
+	}
+}

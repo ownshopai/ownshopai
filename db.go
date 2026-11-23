@@ -100,6 +100,8 @@ func OpenStore(path string) (*Store, error) {
 		`ALTER TABLE customers ADD COLUMN wait_addr INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE orders ADD COLUMN deliver_to TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE products ADD COLUMN kind TEXT NOT NULL DEFAULT 'product'`,
+		`ALTER TABLE pub_users ADD COLUMN email TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE customers ADD COLUMN needs_support INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE products ADD COLUMN minutes INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE orders ADD COLUMN book_day TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE orders ADD COLUMN book_at TEXT NOT NULL DEFAULT ''`,
@@ -576,6 +578,7 @@ func (s *Store) ChatLog(limit int) ([]LogRow, error) {
 
 func (s *Store) Handoff(phone, text, reason string) {
 	s.DB.Exec(`INSERT INTO handoffs(ts, phone, text, reason) VALUES (?,?,?,?)`, now(), phone, text, reason)
+	s.DB.Exec(`UPDATE customers SET needs_support=1 WHERE phone=?`, phone) // the owner follows up
 }
 
 type HandoffRow struct {

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"strconv"
 	"net/http/httptest"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -44,9 +45,10 @@ func TestWebLogin(t *testing.T) {
 }
 
 var webModel = fakeModel{
-	"do you have honey": "call:search_product{query:<escape>honey<escape>}",
-	"add 2 raw honey":   "call:add_to_order{product:<escape>raw honey<escape>,quantity:2}",
-	"slot 1":            "call:pick_slot{slot:<escape>1<escape>}",
+	"do you have honey":     "call:search_product{query:<escape>honey<escape>}",
+	"add 2 raw honey":       "call:add_to_order{product:<escape>raw honey<escape>,quantity:2}",
+	"slot 1":                "call:pick_slot{slot:<escape>1<escape>}",
+	"can you gift wrap it?": "call:faq{question:<escape>can you gift wrap it<escape>}",
 }
 
 // webShop is a running shop with the web chat channel, the fake brain and no send pacing.
@@ -58,7 +60,7 @@ func webShop(t *testing.T) (*Store, *httptest.Server) {
 	if err := hub.Add(&WebChat{S: s}); err != nil {
 		t.Fatal(err)
 	}
-	app := &App{S: s, Bot: b, Hub: hub, Dir: dir}
+	app := &App{S: s, Bot: b, Hub: hub, Dir: dir, File: NewShopFile(s, filepath.Join(dir, "products.xlsx"))}
 	srv := httptest.NewServer(app.Routes())
 	t.Cleanup(srv.Close)
 	if err := s.AddWebUser("ana", "secret", "Ana Web"); err != nil {
@@ -186,3 +188,48 @@ func TestBlockedCustomerGetsNoReply(t *testing.T) {
 }
 
 func strconvI(i int64) string { return strconv.FormatInt(i, 10) }
+
+func TestWebLoginRegistersNewName(t *testing.T) {
+	s, srv := webShop(t)
+	login := func(user, pw string) (int, string) {
+		req, _ := http.NewRequest("POST", srv.URL+"/webchat/login", strings.NewReader(`{"username":"`+user+`","password":"`+pw+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var b bytes.Buffer
+		b.ReadFrom(res.Body)
+		return res.StatusCode, b.String()
+	}
+	if code, body := login("newbie", "pw9"); code != 200 || !strings.Contains(body, `"created":true`) {
+		t.Fatalf("new name: %d %s", code, body)
+	}
+	if _, ok := s.webUser("newbie"); !ok {
+		t.Fatal("new name not stored")
+	}
+	if code, body := login("newbie", "pw9"); code != 200 || !strings.Contains(body, `"created":false`) {
+		t.Fatalf("same name again: %d %s", code, body)
+	}
+	if code, _ := login("ana", "wrong"); code != 401 {
+		t.Fatalf("existing name, wrong password: %d", code)
+	}
+	if u, err := s.WebLogin("ana", "secret"); err != nil || u.DisplayName != "Ana Web" {
+		t.Fatal("wrong password changed the existing user")
+	}
+	// failed logins are limited, like public sign-ins; then even the right password waits
+	for i := 1; i < pubSigninPerIP; i++ {
+		login("ana", "wrong")
+	}
+	if code, _ := login("ana", "secret"); code != 429 {
+		t.Fatalf("after %d wrong passwords: %d, want 429", pubSigninPerIP, code)
+	}
+	// say registers on first use
+	var out bytes.Buffer
+	if err := sayCmd([]string{"--user", "cli-user", "--password", "pw", "--url", srv.URL, "--quiet", "300ms", "--timeout", "10s", "hi"}, &out); err != nil {
+		t.Fatalf("say with a new name: %v", err)
+	}
+	if _, ok := s.webUser("cli-user"); !ok {
+		t.Fatal("say did not register the new name")
+	}
+}

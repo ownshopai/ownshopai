@@ -119,6 +119,25 @@ func (s *Store) WebLogin(username, password string) (WebUser, error) {
 	return u, nil
 }
 
+// WebLoginOrRegister logs a test customer in, or, when the name is new, creates it on the spot with
+// that password: on this computer anyone may make a test login. created says which one happened.
+func (s *Store) WebLoginOrRegister(username, password string) (u WebUser, created bool, err error) {
+	username = strings.TrimSpace(username)
+	if _, ok := s.webUser(username); ok {
+		u, err = s.WebLogin(username, password)
+		return u, false, err
+	}
+	if err := s.AddWebUser(username, password, username); err != nil {
+		if strings.Contains(err.Error(), "already exists") { // made by a parallel request: log in instead
+			u, err = s.WebLogin(username, password)
+			return u, false, err
+		}
+		return WebUser{}, false, err
+	}
+	u, err = s.WebLogin(username, password)
+	return u, err == nil, err
+}
+
 func (s *Store) webUser(username string) (WebUser, bool) {
 	var u WebUser
 	err := s.DB.QueryRow(`SELECT id, username, display_name, created_at FROM web_users WHERE username=?`, username).
@@ -210,6 +229,8 @@ func (w *WebChat) Receive(u WebUser, text string, lat, lng float64) {
 type webSessions struct {
 	mu sync.Mutex
 	m  map[string]string // token -> username
+	// failed logins per name, with the public sign-in's limits (every caller here is 127.0.0.1)
+	failName *limiter
 }
 
 func (a *App) webChat() *WebChat {
@@ -246,7 +267,8 @@ func localOnly(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (a *App) webchatRoutes(m *http.ServeMux) {
-	a.webSess = &webSessions{m: map[string]string{}}
+	a.webSess = &webSessions{m: map[string]string{},
+		failName: newLimiter(pubSigninPerIP, pubSigninWindow)}
 	m.HandleFunc("GET /webchat", localOnly(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := a.webSession(r)
 		a.page(w, "webchat", map[string]any{"User": u, "In": ok})
@@ -319,8 +341,17 @@ func (a *App) webLogin(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, 400, map[string]any{"error": "bad JSON"})
 		return
 	}
-	u, err := a.S.WebLogin(body.Username, body.Password)
+	name := strings.TrimSpace(body.Username)
+	if a.webSess.failName.full(name) {
+		jsonOut(w, 429, map[string]any{"error": "Too many wrong passwords. Wait a few minutes and try again."})
+		return
+	}
+	u, created, err := a.S.WebLoginOrRegister(body.Username, body.Password)
 	if err != nil {
+		if strings.Contains(err.Error(), "wrong username or password") {
+			a.webSess.failName.allow(name)
+			err = errors.New("that name is taken and the password does not match")
+		}
 		jsonOut(w, 401, map[string]any{"error": err.Error()})
 		return
 	}
@@ -331,7 +362,7 @@ func (a *App) webLogin(w http.ResponseWriter, r *http.Request) {
 	a.webSess.m[tok] = u.Username
 	a.webSess.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: webCookie, Value: tok, Path: "/webchat", HttpOnly: true, SameSite: http.SameSiteStrictMode})
-	jsonOut(w, 200, map[string]any{"ok": true, "username": u.Username, "display_name": u.DisplayName})
+	jsonOut(w, 200, map[string]any{"ok": true, "username": u.Username, "display_name": u.DisplayName, "created": created})
 }
 
 // webSession is the logged-in user; a deleted user's session no longer counts.
@@ -363,10 +394,11 @@ func (a *App) webAuth(h func(http.ResponseWriter, *http.Request, WebUser)) http.
 // ---- owner side: the Users page ----
 
 func (a *App) usersPage(w http.ResponseWriter, r *http.Request) {
-	wu, _ := a.S.WebUsers()
-	cs, _ := a.S.Customers()
-	pu, _ := a.S.PubUsers()
-	a.page(w, "users", map[string]any{"WebUsers": wu, "PubUsers": pu, "PubPhones": a.S.pubPhones(), "Customers": cs, "Msg": r.URL.Query().Get("msg")})
+	q := r.URL.Query()
+	all, _ := a.S.UserRows()
+	rows := FilterUsers(all, q.Get("provider"), q.Get("status"), q.Get("q"))
+	a.page(w, "users", map[string]any{"Users": rows, "Total": len(all), "Providers": []string{provWhatsApp, provTelegram, provWebTest, provWebPub},
+		"ProviderLabels": providerLabels, "FProvider": q.Get("provider"), "FStatus": q.Get("status"), "FQ": q.Get("q"), "Msg": q.Get("msg")})
 }
 
 func (a *App) usersRoutes(m *http.ServeMux) {
@@ -390,6 +422,12 @@ func (a *App) usersRoutes(m *http.ServeMux) {
 	})
 	m.HandleFunc("POST /users/{id}/unblock", func(w http.ResponseWriter, r *http.Request) {
 		a.blockRoute(w, r, false)
+	})
+	m.HandleFunc("POST /users/{id}/support", func(w http.ResponseWriter, r *http.Request) {
+		a.supportRoute(w, r, true)
+	})
+	m.HandleFunc("POST /users/{id}/resolved", func(w http.ResponseWriter, r *http.Request) {
+		a.supportRoute(w, r, false)
 	})
 }
 

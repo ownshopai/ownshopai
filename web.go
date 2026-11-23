@@ -31,6 +31,7 @@ var pages = template.Must(template.New("").Funcs(template.FuncMap{
 	"title":  func(s string) string { return strings.ToUpper(s[:1]) + s[1:] },
 	"mulf":   func(q int, p float64) float64 { return float64(q) * p },
 	"plural": plural,
+	"list":   func(v ...string) []string { return v },
 	// svcrow is one row of the services list; i < 0 is the blank row "+ Add service" copies.
 	"svcrow": func(i int, name string, min int, price float64, cur string, durs []int) map[string]any {
 		id := "__i__"
@@ -93,6 +94,7 @@ func (a *App) Routes() http.Handler {
 	m.HandleFunc("POST /settings", a.saveSettings)
 	m.HandleFunc("GET /payment-qr", a.serveSetting("qr_path"))
 	m.HandleFunc("GET /products", a.products)
+	a.faqRoutes(m)
 	m.HandleFunc("POST /products/reload", a.reloadProducts)
 	m.HandleFunc("POST /products/upload", a.uploadProducts("/products", "/products"))
 	m.HandleFunc("GET /products/{sku}/photo", a.serveProductImage)
@@ -150,7 +152,7 @@ func (a *App) page(w http.ResponseWriter, name string, data map[string]any) {
 	if data["Setup"] == true {
 		data["Steps"] = setupSteps(data["Sells"].(string))
 	}
-	data["Nav"] = append(nav, [2]string{"chats", "Chats"}, [2]string{"users", "Users"}, [2]string{"settings", "Settings"})
+	data["Nav"] = append(nav, [2]string{"faq", "FAQ"}, [2]string{"chats", "Chats"}, [2]string{"users", "Users"}, [2]string{"settings", "Settings"})
 	var b bytes.Buffer
 	if err := pages.ExecuteTemplate(&b, name, data); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -602,7 +604,7 @@ func (a *App) receipt(w http.ResponseWriter, r *http.Request) {
 func (a *App) chats(w http.ResponseWriter, r *http.Request) {
 	hs, _ := a.S.Handoffs()
 	logs, _ := a.S.ChatLog(60)
-	a.page(w, "chats", map[string]any{"Handoffs": hs, "Log": logs, "Msg": r.URL.Query().Get("msg")})
+	a.page(w, "chats", map[string]any{"Support": a.S.SupportQueue(), "Handoffs": hs, "Log": logs, "Msg": r.URL.Query().Get("msg")})
 }
 
 func (a *App) resolveHandoff(w http.ResponseWriter, r *http.Request) {

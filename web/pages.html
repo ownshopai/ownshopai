@@ -325,7 +325,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 <p class="muted">Also in <code>{{.OrdersCSV}}</code> (opens in Excel), kept up to date. <a href="/orders.csv">Download</a></p>
 {{range $o := .Orders}}<div class="card" id="order-{{$o.ID}}">
 <div class="row"><strong>Order {{$o.ID}}</strong><span class="pill">{{$o.StatusLabel}}</span>{{if eq $o.Channel "ucp"}}<span class="pill">From an AI agent (UCP)</span>{{end}}
-<span class="muted">{{$o.Customer.Name}} {{with index $.PubPhones $o.Customer.Phone}}{{.}} (web, phone not verified){{else}}{{$o.Customer.Phone}}{{if $o.Customer.Channel}} ({{$o.Customer.Channel}}){{end}}{{end}} - {{$o.Created}}{{if $o.SlotLabel}} - delivery {{$o.SlotLabel}}{{end}}</span></div>
+<span class="muted">{{$o.Customer.Name}} {{with index $.PubPhones $o.Customer.Phone}}{{.}} (web, not verified){{else}}{{$o.Customer.Phone}}{{if $o.Customer.Channel}} ({{$o.Customer.Channel}}){{end}}{{end}} - {{$o.Created}}{{if $o.SlotLabel}} - delivery {{$o.SlotLabel}}{{end}}</span></div>
 <table><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Amount</th></tr>
 {{range $o.Items}}<tr><td>{{.Name}}</td><td>{{.Qty}}</td><td>{{money .Price}}</td><td>{{money (mulf .Qty .Price)}}</td></tr>{{end}}
 <tr><td colspan="3"><strong>Total</strong> <span class="muted">{{$o.Invoice}}{{if $o.Paid}} paid {{$o.PaidAt}}{{else}} unpaid{{end}}</span></td><td><strong>{{$.Cur}} {{money $o.Total}}</strong></td></tr></table>
@@ -341,6 +341,9 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 
 {{define "chats"}}{{template "head" .}}
 <h1>Chats</h1>
+{{if .Support}}<h2>Needs support</h2><p class="muted">Customers to follow up. Set when the shop hands a message to you, or by you on the Users page.</p>
+<div class="card"><table class="log">{{range .Support}}<tr><td><span class="pill">Needs support</span></td><td><strong>{{or .Name .Username .Key}}</strong> <span class="muted">{{.ProviderLabel}}{{with .Phone}} · {{.}}{{end}}{{with .Email}} · {{.}}{{end}}</span></td><td class="muted">{{.LastSeen}}</td>
+<td><form method="post" action="/users/{{.CustomerID}}/resolved" style="display:inline"><input type="hidden" name="back" value="chats"><button class="ghost">Resolved</button></form></td></tr>{{end}}</table></div>{{end}}
 <h2>Waiting for you</h2><p class="muted">Messages the shop was not sure about. Reply by hand.</p>
 {{range .Handoffs}}<form class="card" method="post" action="/handoffs/{{.ID}}">
 <div class="row"><strong>{{.Phone}}</strong><span class="muted">{{.TS}} - {{.Reason}}</span></div>
@@ -351,28 +354,43 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{range .Log}}<tr><td class="muted">{{.TS}}</td><td>{{.Phone}}</td><td class="muted">{{.Direction}}</td><td>{{.Text}}</td></tr>{{end}}</table></div>
 {{template "foot" .}}{{end}}
 
+{{define "faq"}}{{template "head" .}}
+<h1>FAQ</h1>
+<p class="muted">Questions the shop answers by itself, from the FAQ sheet of your products file. Keywords help it match other ways of asking. Changes are written to the file and used at once.</p>
+{{range .FAQs}}{{if eq .ID $.Edit}}<form class="card" method="post" action="/faq/{{.ID}}">
+<label>Question</label><input type="text" name="question" value="{{.Question}}" required>
+<label>Answer</label><textarea name="answer" rows="3" required>{{.Answer}}</textarea>
+<label>Keywords</label><input type="text" name="keywords" value="{{.Keywords}}">
+<div class="row"><button>Save</button><a href="/faq">Cancel</a></div></form>
+{{else}}<div class="card"><div class="row"><strong>{{.Question}}</strong><span class="muted">{{.Keywords}}</span></div><p>{{.Answer}}</p>
+<div class="row"><form method="get" action="/faq"><input type="hidden" name="edit" value="{{.ID}}"><button class="ghost">Edit</button></form><form method="post" action="/faq/{{.ID}}/delete" onsubmit="return confirm('Delete this question?')"><button class="ghost">Delete</button></form></div></div>{{end}}
+{{else}}<div class="card muted">No questions yet.</div>{{end}}
+<form class="card" method="post" action="/faq"><p><strong>Add a question</strong></p>
+<label>Question</label><input type="text" name="question" placeholder="Do you deliver on Sundays?" required>
+<label>Answer</label><textarea name="answer" rows="3" required></textarea>
+<label>Keywords</label><input type="text" name="keywords" placeholder="sunday, weekend, delivery">
+<p><button>Add</button></p></form>
+{{template "foot" .}}{{end}}
+
 {{define "users"}}{{template "head" .}}
 <h1>Users</h1>
-<h2>Test customers (web chat)</h2>
-<p class="muted">Test the shop without a phone: a test customer logs in at <a href="/webchat">/webchat</a> on this computer and chats like a WhatsApp customer. Orders and chats show up like real ones.</p>
-<div class="card">{{range .WebUsers}}<div class="row"><strong>{{.Username}}</strong><span class="muted">{{.DisplayName}} - added {{.Created}}</span>
-<form method="post" action="/users/web/{{.ID}}/delete"><button class="ghost">Delete</button></form></div>
-{{else}}<p class="muted">No test customers yet.</p>{{end}}</div>
-<form class="card" method="post" action="/users/web"><p><strong>Add a test customer</strong></p>
+<p class="muted">Every customer on every channel. Ban: the shop stops replying to them on every channel (past orders stay). Needs support: they go to the top of the Chats page; set by you, or by the shop when it hands a message to you. Phone and email typed on the public web link are not verified.</p>
+<form class="card row" method="get" action="/users">
+<select name="provider"><option value="">All providers</option>{{range .Providers}}<option value="{{.}}"{{if eq . $.FProvider}} selected{{end}}>{{index $.ProviderLabels .}}</option>{{end}}</select>
+<select name="status"><option value="">Any status</option>{{range $v := (list "active" "banned" "support")}}<option value="{{$v}}"{{if eq $v $.FStatus}} selected{{end}}>{{if eq $v "active"}}Active{{else if eq $v "banned"}}Banned{{else}}Needs support{{end}}</option>{{end}}</select>
+<input type="search" name="q" value="{{.FQ}}" placeholder="Search name, phone or email"><button>Filter</button>{{if or .FProvider .FStatus .FQ}} <a href="/users">Clear</a>{{end}}</form>
+<div class="card" style="overflow-x:auto"><table class="log"><tr><th>Name / username</th><th>Phone</th><th>Email</th><th>Provider</th><th>Password</th><th>First seen</th><th>Last seen</th><th>Orders</th><th>Status</th><th></th></tr>
+{{range .Users}}<tr><td>{{.Name}}{{if .Username}} <span class="muted">({{.Username}})</span>{{end}}</td><td>{{.Phone}}</td><td>{{.Email}}</td>
+<td>{{.ProviderLabel}}{{if eq .Provider "webpub"}} <span class="muted">(web, not verified)</span>{{end}}</td><td class="muted">{{if .PasswordSet}}set{{else}}none{{end}}</td>
+<td class="muted">{{.FirstSeen}}</td><td class="muted">{{.LastSeen}}</td><td>{{.Orders}}</td>
+<td>{{if .Blocked}}<span class="pill">Banned</span>{{else if .Support}}<span class="pill">Needs support</span>{{else}}Active{{end}}</td>
+<td style="white-space:nowrap">{{if .CustomerID}}{{if .Blocked}}<form method="post" action="/users/{{.CustomerID}}/unblock" style="display:inline"><button class="ghost">Unban</button></form>{{else}}<form method="post" action="/users/{{.CustomerID}}/block" style="display:inline"><button class="ghost">Ban</button></form>{{end}}
+{{if .Support}}<form method="post" action="/users/{{.CustomerID}}/resolved" style="display:inline"><button class="ghost">Resolved</button></form>{{else}}<form method="post" action="/users/{{.CustomerID}}/support" style="display:inline"><button class="ghost">Mark needs support</button></form>{{end}}{{end}}
+{{if .WebUserID}}<form method="post" action="/users/web/{{.WebUserID}}/delete" style="display:inline" onsubmit="return confirm('Delete this test login and its web chat messages?')"><button class="ghost">Delete</button></form>{{end}}</td></tr>
+{{else}}<tr><td colspan="10" class="muted">{{if .Total}}No customer matches.{{else}}No customers yet.{{end}}</td></tr>{{end}}</table></div>
+<form class="card" method="post" action="/users/web"><p><strong>Add a test customer</strong> <span class="muted">(or just log in at <a href="/webchat">/webchat</a> with a new name: that creates one)</span></p>
 <div class="row"><input type="text" name="username" placeholder="username" required autocomplete="off"><input type="password" name="password" placeholder="password" required autocomplete="new-password"><input type="text" name="display_name" placeholder="display name"><button>Add</button></div>
 <p class="muted">For testing only: use made-up names and passwords.</p></form>
-<h2>Web chat customers (public link)</h2>
-<p class="muted">People who signed in on your public web chat link with a name and phone number. The phone is not verified: anyone can type any number. Each browser is its own customer.</p>
-<div class="card"><table class="log"><tr><th>Name</th><th>Phone</th><th>First seen</th><th>Last seen</th><th></th></tr>
-{{range .PubUsers}}<tr><td>{{.Name}}</td><td>{{.Phone}} <span class="muted">(web, phone not verified)</span></td><td class="muted">{{.Created}}</td><td class="muted">{{.LastSeen}}</td>
-<td>{{if .Blocked}}<span class="pill">blocked</span> <form method="post" action="/users/{{.Key}}/unblock" style="display:inline"><button class="ghost">Unblock</button></form>{{else}}<form method="post" action="/users/{{.Key}}/block" style="display:inline"><button class="ghost">Block</button></form>{{end}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">No web chat customers yet.</td></tr>{{end}}</table></div>
-<h2>Customers</h2>
-<p class="muted">Everyone who wrote to the shop, on every channel. A blocked customer gets no reply at all; their past orders stay on the Orders page.</p>
-<div class="card"><table class="log"><tr><th>Customer</th><th>Name</th><th>Channel</th><th>Orders</th><th></th></tr>
-{{range .Customers}}<tr><td>{{with index $.PubPhones .Phone}}{{.}} <span class="muted">(web, phone not verified)</span>{{else}}{{.Phone}}{{end}}</td><td>{{.Name}}</td><td class="muted">{{.Channel}}</td><td>{{.Orders}}</td>
-<td>{{if .Blocked}}<span class="pill">blocked</span> <form method="post" action="/users/{{.ID}}/unblock" style="display:inline"><button class="ghost">Unblock</button></form>{{else}}<form method="post" action="/users/{{.ID}}/block" style="display:inline"><button class="ghost">Block</button></form>{{end}}</td></tr>
-{{else}}<tr><td colspan="5" class="muted">No customers yet.</td></tr>{{end}}</table></div>
 {{template "foot" .}}{{end}}
 
 {{define "webchat"}}<!doctype html>
@@ -429,8 +447,8 @@ document.getElementById('logout').onclick = async e => { e.preventDefault(); awa
 poll(); setInterval(poll, 1500);
 </script>
 {{else}}<h1>Web chat</h1>
-<form class="card" id="login" style="max-width:360px"><p class="muted">Log in as a test customer. The shop owner adds test customers on the Users page.</p>
-<label>Username</label><input type="text" id="u" autocomplete="username" required autofocus>
+<form class="card" id="login" style="max-width:360px"><p class="muted">Chat as a test customer on this computer. New here? Type any name and a password: this creates your test login. Next time use the same name and password.</p>
+<label>Name</label><input type="text" id="u" autocomplete="username" required autofocus>
 <label>Password</label><input type="password" id="p" autocomplete="current-password" required>
 <p><button>Log in</button></p><p class="muted" id="err"></p></form>
 <script>
@@ -466,11 +484,12 @@ document.getElementById('login').onsubmit = async e => {
 <body><header><strong>{{if .Shop}}{{.Shop}}{{else}}Shop chat{{end}}</strong><span class="muted" id="who"></span> <a href="#" id="notme" class="hide">Not you? Start again</a></header><main>
 <div id="offline">You are offline. Messages will load again when you are back online.</div>
 <form class="card hide" id="signin" style="max-width:380px;margin:0 auto">
-<h1>Chat with us</h1><p class="muted">Type your name and phone number so the shop knows who you are. No password.</p>
+<h1>Chat with us</h1><p class="muted">Type your name and your phone number or email (one is enough) so the shop knows who you are. No password.</p>
 <label>Your name</label><input type="text" id="name" autocomplete="name" maxlength="60" required>
-<label>Phone number</label><input type="tel" id="phone" autocomplete="tel" placeholder="+1 555 123 4567" required>
+<label>Phone number</label><input type="tel" id="phone" autocomplete="tel" placeholder="+1 555 123 4567">
+<label>or email</label><input type="email" id="email" autocomplete="email" maxlength="254" placeholder="you@example.com">
 <p><button>Start chatting</button></p><p class="muted" id="serr"></p>
-<p class="muted">The shop sees your name and number with your messages. This browser remembers you, so next time you go straight to the chat.</p>
+<p class="muted">The shop sees your name, number and email with your messages. This browser remembers you, so next time you go straight to the chat.</p>
 <p class="muted">Your messages go to {{if .Shop}}{{.Shop}}{{else}}this shop{{end}}. Privacy: {{if .PrivacyNote}}{{.PrivacyNote}} · {{end}}<a href="https://ownshopai.store/privacy/" target="_blank" rel="noopener">OwnShop AI privacy</a></p></form>
 <div class="wc hide" id="chat"><div class="wcmsgs" id="msgs"></div>
 <form class="wcbar" id="f"><input type="text" id="t" placeholder="Type a message" autocomplete="off" maxlength="1000"><button>Send</button></form>
@@ -511,7 +530,7 @@ async function start() {
 $('signin').onsubmit = async e => {
   e.preventDefault();
   try {
-    const r = await post('/api/signin', {name:$('name').value, phone:$('phone').value});
+    const r = await post('/api/signin', {name:$('name').value, phone:$('phone').value, email:$('email').value});
     const j = await r.json();
     if (!r.ok) { $('serr').textContent = j.error; return; }
     start();

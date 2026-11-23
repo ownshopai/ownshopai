@@ -23,10 +23,10 @@ import (
 // listener (127.0.0.1:2008 or the next free port) that knows only the customer chat routes; the
 // owner page on :2007 is never reachable through the tunnel.
 //
-// Sign-in is a name and a phone number, no password. The identity is the BROWSER: a long-lived random
+// Sign-in is a name and a phone number or an email (at least one), no password. The identity is the BROWSER: a long-lived random
 // token in an HttpOnly cookie (only its SHA-256 is stored). A browser sees only its own chat; the
 // same phone typed in another browser is another customer, never merged, and never merged with a
-// WhatsApp or Telegram customer. The owner sees the name and phone marked "web, phone not verified".
+// WhatsApp or Telegram customer. The owner sees the name, phone and email marked "web, not verified".
 
 const (
 	pubChannel = "webpub"
@@ -59,9 +59,36 @@ CREATE TABLE IF NOT EXISTS push_subs (
 `
 
 type PubUser struct {
-	ID                             int64
-	Name, Phone, Created, LastSeen string
-	Blocked                        bool
+	ID                                    int64
+	Name, Phone, Email, Created, LastSeen string
+	Blocked                               bool
+}
+
+// Contact is the phone and email the customer typed, for the owner pages.
+func (u PubUser) Contact() string { return joinContact(u.Phone, u.Email) }
+
+func joinContact(phone, email string) string {
+	switch {
+	case phone != "" && email != "":
+		return phone + " · " + email
+	case phone != "":
+		return phone
+	}
+	return email
+}
+
+// cleanEmail is a loose check: one @, something before it, a dot in the domain, no spaces, 254 at most.
+func cleanEmail(e string) (string, bool) {
+	e = strings.TrimSpace(e)
+	at := strings.LastIndex(e, "@")
+	if len(e) > 254 || at < 1 || strings.Count(e, "@") != 1 || strings.ContainsAny(e, " \t\r\n<>,;\"") {
+		return "", false
+	}
+	dom := e[at+1:]
+	if i := strings.Index(dom, "."); i < 1 || i == len(dom)-1 {
+		return "", false
+	}
+	return e, true
 }
 
 func (u PubUser) Key() string { return pubKeyPfx + strconv.FormatInt(u.ID, 10) }
@@ -92,14 +119,26 @@ func hashToken(tok string) string {
 }
 
 // AddPubUser makes a new web customer for a new browser token and its customer row.
-func (s *Store) AddPubUser(name, phone string) (PubUser, string, error) {
+func (s *Store) AddPubUser(name, phone, email string) (PubUser, string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > pubMaxName || strings.ContainsAny(name, "\r\n\t<>") {
 		return PubUser{}, "", errors.New("type your name (up to 60 letters)")
 	}
-	ph, ok := cleanPhone(phone)
-	if !ok {
-		return PubUser{}, "", errors.New("type your phone number: 7 to 15 digits, + allowed")
+	if strings.TrimSpace(phone) == "" && strings.TrimSpace(email) == "" {
+		return PubUser{}, "", errors.New("type your phone number or your email")
+	}
+	ph, em := "", ""
+	if strings.TrimSpace(phone) != "" {
+		var ok bool
+		if ph, ok = cleanPhone(phone); !ok {
+			return PubUser{}, "", errors.New("type your phone number: 7 to 15 digits, + allowed")
+		}
+	}
+	if strings.TrimSpace(email) != "" {
+		var ok bool
+		if em, ok = cleanEmail(email); !ok {
+			return PubUser{}, "", errors.New("that email does not look right")
+		}
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -107,13 +146,13 @@ func (s *Store) AddPubUser(name, phone string) (PubUser, string, error) {
 	}
 	tok := hex.EncodeToString(b)
 	t := now()
-	res, err := s.DB.Exec(`INSERT INTO pub_users(token_hash, name, phone, created_at, last_seen) VALUES (?,?,?,?,?)`,
-		hashToken(tok), name, ph, t, t)
+	res, err := s.DB.Exec(`INSERT INTO pub_users(token_hash, name, phone, email, created_at, last_seen) VALUES (?,?,?,?,?,?)`,
+		hashToken(tok), name, ph, em, t, t)
 	if err != nil {
 		return PubUser{}, "", err
 	}
 	id, _ := res.LastInsertId()
-	u := PubUser{ID: id, Name: name, Phone: ph, Created: t, LastSeen: t}
+	u := PubUser{ID: id, Name: name, Phone: ph, Email: em, Created: t, LastSeen: t}
 	// the customer row exists from sign-in on, so the owner can block before the first message
 	if c, err := s.Customer(u.Key(), name, strconv.FormatInt(id, 10)); err == nil {
 		s.SetCustomerChannel(c.ID, pubChannel, pubAccount)
@@ -126,8 +165,8 @@ func (s *Store) pubUserByToken(tok string) (PubUser, bool) {
 		return PubUser{}, false
 	}
 	var u PubUser
-	err := s.DB.QueryRow(`SELECT id, name, phone, created_at, last_seen FROM pub_users WHERE token_hash=?`, hashToken(tok)).
-		Scan(&u.ID, &u.Name, &u.Phone, &u.Created, &u.LastSeen)
+	err := s.DB.QueryRow(`SELECT id, name, phone, email, created_at, last_seen FROM pub_users WHERE token_hash=?`, hashToken(tok)).
+		Scan(&u.ID, &u.Name, &u.Phone, &u.Email, &u.Created, &u.LastSeen)
 	return u, err == nil
 }
 
@@ -137,7 +176,7 @@ func (s *Store) touchPubUser(id int64) {
 
 // PubUsers lists the public web customers, newest first, with their block state.
 func (s *Store) PubUsers() ([]PubUser, error) {
-	rows, err := s.DB.Query(`SELECT u.id, u.name, u.phone, u.created_at, u.last_seen,
+	rows, err := s.DB.Query(`SELECT u.id, u.name, u.phone, u.email, u.created_at, u.last_seen,
 	  COALESCE((SELECT blocked FROM customers c WHERE c.phone='` + pubKeyPfx + `'||u.id), 0) FROM pub_users u ORDER BY u.id DESC`)
 	if err != nil {
 		return nil, err
@@ -146,25 +185,25 @@ func (s *Store) PubUsers() ([]PubUser, error) {
 	var out []PubUser
 	for rows.Next() {
 		var u PubUser
-		rows.Scan(&u.ID, &u.Name, &u.Phone, &u.Created, &u.LastSeen, &u.Blocked)
+		rows.Scan(&u.ID, &u.Name, &u.Phone, &u.Email, &u.Created, &u.LastSeen, &u.Blocked)
 		out = append(out, u)
 	}
 	return out, rows.Err()
 }
 
-// pubPhones maps a customer key (webpub:<id>) to the phone the customer typed, for the owner pages.
+// pubPhones maps a customer key (webpub:<id>) to the phone and email the customer typed, for the owner pages.
 func (s *Store) pubPhones() map[string]string {
 	out := map[string]string{}
-	rows, err := s.DB.Query(`SELECT id, phone FROM pub_users`)
+	rows, err := s.DB.Query(`SELECT id, phone, email FROM pub_users`)
 	if err != nil {
 		return out
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var id int64
-		var p string
-		rows.Scan(&id, &p)
-		out[pubKeyPfx+strconv.FormatInt(id, 10)] = p
+		var p, e string
+		rows.Scan(&id, &p, &e)
+		out[pubKeyPfx+strconv.FormatInt(id, 10)] = joinContact(p, e)
 	}
 	return out
 }
@@ -292,6 +331,17 @@ func (l *limiter) allow(key string) bool {
 	return true
 }
 
+// full says the key used up its window, without counting a try.
+func (l *limiter) full(key string) bool {
+	if key == "" {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	w := l.m[key]
+	return w != nil && l.now().Sub(w.start) <= l.per && w.count >= l.n
+}
+
 // ---- the public listener ----
 
 type pubSite struct {
@@ -400,7 +450,7 @@ func (p *pubSite) Handler() http.Handler {
 			jsonOut(w, 200, map[string]any{"signed_in": false})
 			return
 		}
-		jsonOut(w, 200, map[string]any{"signed_in": true, "name": u.Name, "phone": u.Phone})
+		jsonOut(w, 200, map[string]any{"signed_in": true, "name": u.Name, "phone": u.Phone, "email": u.Email})
 	}))
 	m.HandleFunc("POST /api/signin", g(p.signin))
 	m.HandleFunc("POST /api/signout", g(func(w http.ResponseWriter, r *http.Request) {
@@ -463,18 +513,18 @@ func (p *pubSite) signin(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, 429, map[string]any{"error": "Too many tries. Wait a few minutes and try again."})
 		return
 	}
-	var body struct{ Name, Phone string }
+	var body struct{ Name, Phone, Email string }
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		jsonOut(w, 400, map[string]any{"error": "bad JSON"})
 		return
 	}
-	u, tok, err := p.a.S.AddPubUser(body.Name, body.Phone)
+	u, tok, err := p.a.S.AddPubUser(body.Name, body.Phone, body.Email)
 	if err != nil {
 		jsonOut(w, 400, map[string]any{"error": err.Error()})
 		return
 	}
 	setPubCookie(w, tok, pubCookieMaxAge)
-	jsonOut(w, 200, map[string]any{"ok": true, "name": u.Name, "phone": u.Phone})
+	jsonOut(w, 200, map[string]any{"ok": true, "name": u.Name, "phone": u.Phone, "email": u.Email})
 }
 
 func (p *pubSite) send(w http.ResponseWriter, r *http.Request, u PubUser) {
