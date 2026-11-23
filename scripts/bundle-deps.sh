@@ -57,4 +57,6 @@ for t in darwin-arm64 windows-amd64 windows-arm64; do
 done
 cp "$WACLI_SRC/LICENSE" "$ROOT/bundled/LICENSE.wacli" 2>/dev/null || true
 cp "$TP/llama.cpp/LICENSE" "$ROOT/bundled/LICENSE.llama.cpp"
+# the full notices (every component, its license and source) ship in every installer next to the program
+cp "$ROOT/THIRD-PARTY-NOTICES" "$ROOT/CREDITS" "$ROOT/LICENSE" "$ROOT/bundled/"
 ls -l "$ROOT"/bundled/*/

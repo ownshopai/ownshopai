@@ -1,0 +1,45 @@
+<div class="doc-layout" style="grid-template-columns:minmax(0,1fr)">
+<article class="prose" style="max-width:860px">
+<h1>Privacy Policy</h1>
+<p class="muted">Version 1.0 &middot; Last updated 2026-11-23</p>
+<p>This policy explains what personal data OwnShop AI and its optional services handle, why, and what you can ask us to do with it. OwnShop AI is made by Deemwar ("we"). For the services described here that we run (the free shop link service and this website's analytics), Deemwar is the data controller. Contact: <a href="mailto:io@deemwar.com">io@deemwar.com</a>.</p>
+
+<h2 id="app">1. The OwnShop AI app</h2>
+<p>The app runs on your own computer. Your shop data (products, services, prices, settings), your customers' chats, orders, bookings and contact details are stored on that computer and are not sent to us. The AI model also runs on your computer. We do not receive copies of your conversations.</p>
+<p>When you connect WhatsApp or Telegram, messages travel between your computer and those services under their own terms and privacy policies. The WhatsApp connection is unofficial (see the <a href="/terms/">Terms</a>).</p>
+
+<h2 id="link">2. The free shop link service (name.ownshopai.store)</h2>
+<p>If you choose to get a free link, we process:</p>
+<ul>
+<li><b>Google sign-in:</b> your Google account email, its verification status and a Google/Firebase user id. We use Firebase Authentication (Google) only to confirm who you are. We do not receive your Google password.</li>
+<li><b>Registration details you give:</b> shop name, your name, phone number, what you sell, country, website or social page (optional), and the version and time you accepted the Terms.</li>
+<li><b>Technical details:</b> the country your connection came from (derived by Cloudflare from your IP address; we do not store the IP address), your browser's user agent at registration, and sign-in session records.</li>
+<li><b>Link records:</b> the name you claimed, when it was created, released, disabled or re-enabled, daily "still in use" signals (heartbeats) from the app, and whether the tunnel is connected.</li>
+<li><b>Event log:</b> a record of significant events (sign-in, registration, claim, release, token rotation, disable/enable, bans, admin changes, service errors) with time, type and the related account or link. It never contains passwords, tunnel tokens or keys.</li>
+</ul>
+<p><b>Why:</b> to provide the link (our contract with you), and to prevent and investigate abuse such as phishing (our legitimate interest in keeping the service safe).</p>
+<p><b>Where:</b> account, registration and link records are kept in our database on servers we rent in the EU (Hetzner, Germany). Registration snapshots and the event log are kept in a private Cloudflare R2 storage bucket.</p>
+<p><b>How long:</b> registration and link records are kept while your account exists and afterwards to prevent abuse (for example, so a banned account cannot simply register again). Sign-in sessions expire after 30 days. One-time sign-in codes expire after 5 minutes. Event logs are kept for up to 24 months. Unused links are disabled after 90 days without activity and released 30 days later.</p>
+
+<h2 id="processors">3. Service providers we use</h2>
+<ul>
+<li><b>Cloudflare</b>: tunnels that carry your link's traffic, DNS, the Turnstile human check on sign-in pages, hosting of this website and the sign-in pages, and R2 storage.</li>
+<li><b>Google (Firebase Authentication)</b>: Google sign-in.</li>
+<li><b>Hetzner</b>: the servers that run the link service and its database.</li>
+</ul>
+<p>We do not sell personal data and we do not use it for advertising.</p>
+
+<h2 id="webchat">4. Your customers and the web chat</h2>
+<p>When a shop uses a link, its customers' chat traffic passes through Cloudflare's network on its way to the shop owner's computer, encrypted in transit. We do not store those chats. The shop owner decides what customer data is collected and how it is used, so the shop owner is the controller of their customers' data, not Deemwar. Customers with questions about their data should contact the shop.</p>
+
+<h2 id="analytics">5. Website analytics (ownshopai.store)</h2>
+<p>We count visits without cookies and without storing IP addresses. Each event records the page, the referring website's name, campaign tags in the link (utm), a rough screen size and the visitor's country (from Cloudflare). To count unique visitors per day we use a one-way hash of the IP address and browser user agent combined with a random value that changes every day and is deleted after that day, so visits cannot be linked across days or back to a person. If your browser sends Do Not Track or Global Privacy Control, nothing is sent. There are no third-party trackers.</p>
+
+<h2 id="rights">6. Your rights</h2>
+<p>Depending on where you live (for example under the GDPR or UK GDPR) you can ask to access, correct or delete your personal data, to restrict or object to its use, or to receive a copy. Email <a href="mailto:io@deemwar.com">io@deemwar.com</a> from the email address you signed in with. We handle requests by hand and reply within 30 days. We may keep the minimum needed to prevent abuse or to meet legal duties, and will tell you if so. You can also complain to your local data protection authority.</p>
+<p>You can release your link at any time from the app.</p>
+
+<h2 id="changes">7. Changes</h2>
+<p>We will update this page when what we do changes, with a new version and date. Significant changes for link service users will be shown on the sign-in page.</p>
+</article>
+</div>

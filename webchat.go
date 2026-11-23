@@ -365,7 +365,8 @@ func (a *App) webAuth(h func(http.ResponseWriter, *http.Request, WebUser)) http.
 func (a *App) usersPage(w http.ResponseWriter, r *http.Request) {
 	wu, _ := a.S.WebUsers()
 	cs, _ := a.S.Customers()
-	a.page(w, "users", map[string]any{"WebUsers": wu, "Customers": cs, "Msg": r.URL.Query().Get("msg")})
+	pu, _ := a.S.PubUsers()
+	a.page(w, "users", map[string]any{"WebUsers": wu, "PubUsers": pu, "PubPhones": a.S.pubPhones(), "Customers": cs, "Msg": r.URL.Query().Get("msg")})
 }
 
 func (a *App) usersRoutes(m *http.ServeMux) {

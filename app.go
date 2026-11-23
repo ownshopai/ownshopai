@@ -42,6 +42,9 @@ func pickPort(saved int, free func(int) bool, isOwnshop func(int) bool) (port in
 		saved = defaultPort
 	}
 	for p := saved; p < saved+100 && p <= 65535; p++ {
+		if p == pubDefaultPort { // the public web chat listener's port: the fixed links point there
+			continue
+		}
 		if isOwnshop(p) {
 			return p, true, true
 		}

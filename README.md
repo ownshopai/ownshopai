@@ -11,7 +11,7 @@ If it helps your shop, please **star** this repo so other shops can find it, and
 
 ## Who it is for
 
-A small shop or home business that keeps its list in an Excel sheet and talks to customers on WhatsApp or Telegram, and
+A small shop or home business that keeps its list in an Excel sheet and talks to customers on WhatsApp, Telegram or the web, and
 anyone who takes bookings: salons, tutors, clinics, studios. Today you answer "price?", "in stock?" and "where is my
 order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a domain. OwnShop AI needs none of them.
 
@@ -26,6 +26,20 @@ order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a dom
   text, or a UPI ID with a QR made for each order.
 - **Order and service status**: "what is my order status?" answers that customer's own order.
 - **Hand-off to you**: anything it is not sure about goes to the Chats page for you to answer.
+
+## Chat channels
+
+- **WhatsApp** (unofficial link through wacli, see the warning below) and **Telegram** (official bot).
+- **Website**: a public chat link customers open in any browser, from a phone or a computer. Your shop page itself
+  stays on your computer only; only the customer chat is published, through a Cloudflare tunnel (install Cloudflare's
+  free `cloudflared` once). Three kinds of link, on the **Website** card in Settings:
+  - **Quick link**, no sign-up: a random `*.trycloudflare.com` address from a Cloudflare quick tunnel. It changes every
+    time OwnShop AI or the computer restarts.
+  - **Free fixed link** `yourname.ownshopai.store`: **coming soon**. The link service it needs is not live yet.
+  - **Your own domain**: paste a Cloudflare tunnel token and your hostname; the token is stored locally and never shown again.
+  Customers type a name and phone number (not verified), and the browser remembers them. The chat is a **PWA**: they can
+  add it to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS
+  16.4 or later). Guide: [docs/guides/14-web-chat-link.md](docs/guides/14-web-chat-link.md).
 
 You click **Payment received**, **Packed**, **Shipped**, **Delivered** or **Cancel** on the Orders page, and each click
 messages the customer (Payment received also sends a receipt image). You can **block** a customer on every channel from
@@ -70,6 +84,7 @@ file. Nothing else to install. On the Mac, until the app is notarized, macOS ask
 - About 600 MB of disk and about 1 GB of free memory while chatting. A reply takes about 0.4 s on a recent Mac.
 - No API key, no account, no internet AI service. The model runs locally.
 - For WhatsApp: a spare phone number. For Telegram: a bot token from @BotFather.
+- For the website chat link: Cloudflare's free `cloudflared` program (`winget install --id Cloudflare.cloudflared` or `brew install cloudflared`).
 - To build from source: Go (see `go.mod`), [Task](https://taskfile.dev), and for the installers cmake and zig.
 
 ## Using it
@@ -140,6 +155,8 @@ it as soon as it can, so it never sells stock you no longer have.
 - **The model is small.** It picks the right tool about 2 times in 3 (below); every wrong pick that the checks catch goes
   to you on the Chats page instead of being acted on.
 - **WhatsApp is unofficial** (see the warning above).
+- **The website chat needs the computer on** and online, and Cloudflare carries that traffic, so Cloudflare can see
+  those chats. Phone numbers typed in the web chat are not verified.
 - Replies are in English for now. The Mac app is not notarized yet.
 
 ## How good is the model?

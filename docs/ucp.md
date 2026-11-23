@@ -145,7 +145,7 @@ method, and it still assumes an instrument. OwnShop AI therefore:
 ## How an agent connects today (local)
 
 1. In Settings, tick "Let AI agents shop here" and Save.
-2. Any MCP client: add an HTTP (streamable) MCP server at `http://127.0.0.1:2007/ucp/mcp`.
+2. Any MCP client with HTTP transport: add the server URL `http://127.0.0.1:2007/ucp/mcp`.
    Use the port the shop page shows if OwnShop AI moved off 2007.
 3. Or use REST/discovery: `curl http://127.0.0.1:2007/.well-known/ucp`, then follow `services["dev.ucp.shopping"]`.
 

@@ -99,7 +99,6 @@ const head = index.slice(0, index.indexOf("<title>"));
 const nav = index.slice(index.indexOf('<header class="nav">'), index.indexOf("</header>") + 9).replace(/href="#/g, 'href="/#');
 const footer = index.slice(index.indexOf("<footer>"));
 const favicon = index.match(/<link rel="icon"[^>]*>/)[0];
-const beacon = (index.match(/<script defer src="https:\/\/static\.cloudflareinsights\.com[^<]*<\/script>/) || [""])[0];
 const page = (title, desc, path, inner) => `${head}<title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${SITE}${path}">
@@ -109,7 +108,7 @@ ${favicon}
 <body>
 ${nav}
 ${inner}
-${footer.replace("</body>", `${beacon}\n</body>`).replace(beacon + "\n" + beacon, beacon)}`;
+${footer}`;
 const urls = ["/"];
 
 // /docs: the one-page manual
@@ -168,7 +167,15 @@ ${body}
   urls.push("/credits/");
 }
 
-// /download/<file>/: one page per installer, so each download is a page view in cookieless analytics.
+// /privacy and /terms
+for (const [slugp, title, desc] of [["privacy", "Privacy Policy - OwnShop AI", "What personal data OwnShop AI, the free shop link service and this website handle, and your rights."],
+  ["terms", "Terms of Service - OwnShop AI", "Terms for the OwnShop AI software, the free shop link service and acceptable use."]]) {
+  mkdirSync(join(out, slugp), { recursive: true });
+  writeFileSync(join(out, slugp, "index.html"), page(title, desc, `/${slugp}/`, readFileSync(join(here, "src", `${slugp}.html`), "utf8")));
+  urls.push(`/${slugp}/`);
+}
+
+// /download/<file>/: one page per installer; the analytics script reports a download event there.
 {
   const files = {
     "windows-x64": ["Windows x64", "ownshop-setup-windows-amd64.exe", "/manual/install-windows/"],

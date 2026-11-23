@@ -187,12 +187,19 @@ func startShop(dir, dbPath, addr string, ready func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go sf.Watch(ctx, 2*time.Second)
 	startChannels(s, hub)
-	onSignal(func() { cancel(); hub.Close(); stopModel() })
-	app := &App{S: s, Bot: bot, Hub: hub, File: sf, Dir: dir}
+	stopTunnel := func() {}
+	onSignal(func() { cancel(); hub.Close(); stopModel(); stopTunnel() })
+	app := &App{S: s, Bot: bot, Hub: hub, File: sf, Dir: dir, Links: newLinkService()}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalf("web: %v", err)
 	}
+	stopTunnel = app.startWebsite(ln.Addr().(*net.TCPAddr).Port)
+	go linkHeartbeat(ctx, s, app.Links, func() {
+		if app.Tunnel != nil && app.Tunnel.Mode() == "link" {
+			app.restartTunnel()
+		}
+	})
 	log.Printf("OwnShop AI is running: open http://localhost:%d", ln.Addr().(*net.TCPAddr).Port)
 	if ready != nil {
 		ready()

@@ -3,6 +3,7 @@ module github.com/ownshopai/ownshopai
 go 1.26.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/muthuishere/toolnexus/golang v0.30.1-0.20261120153216-d7b612301b70
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/xuri/excelize/v2 v2.10.1
@@ -13,6 +14,7 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mark3labs/mcp-go v0.48.0 // indirect

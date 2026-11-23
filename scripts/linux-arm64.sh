@@ -74,6 +74,7 @@ rm -rf "$ROOT/dist/pkg-linux-arm64"; mkdir -p "$P/models"
 cp "$ROOT/dist/ownshop-linux-arm64" "$P/ownshop"
 cp "$ROOT/models/qwen35-0.8b-q4km.gguf" "$ROOT/models/ggml-base.bin" "$P/models/"
 cp "$ROOT/packaging/termux/run-termux.sh" "$ROOT/packaging/termux/README-termux.txt" "$P/"
+cp "$ROOT/THIRD-PARTY-NOTICES" "$ROOT/CREDITS" "$ROOT/LICENSE" "$ROOT"/bundled/LICENSE.* "$P/"
 chmod +x "$P/ownshop" "$P/run-termux.sh"
 COPYFILE_DISABLE=1 tar --no-xattrs -C "$ROOT/dist/pkg-linux-arm64" -czf "$ROOT/dist/ownshop-linux-arm64.tar.gz" ownshop
 ls -l "$out" "$ROOT/dist/ownshop-linux-arm64" "$ROOT/dist/ownshop-linux-arm64.tar.gz"

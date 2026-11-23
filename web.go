@@ -56,6 +56,9 @@ type App struct {
 	UCP  *ucpState // Universal Commerce Protocol checkouts (ucp.go); off unless ucp_enabled
 
 	webSess *webSessions // web chat logins (webchat.go)
+	Tunnel  *Tunnel      // the Website channel's public link (tunnel.go); nil when not running
+	Pub     *pubSite     // the public listener (website.go)
+	Links   LinkService  // the free fixed link service (linkservice_client.go)
 }
 
 func (a *App) ordersCSV() string { return filepath.Join(a.Dir, "orders.csv") }
@@ -127,6 +130,7 @@ func (a *App) Routes() http.Handler {
 	a.ucpRoutes(m)
 	a.webchatRoutes(m)
 	a.usersRoutes(m)
+	a.websiteRoutes(m)
 	return m
 }
 
@@ -416,7 +420,7 @@ func (a *App) products(w http.ResponseWriter, r *http.Request) {
 
 // ---- settings ----
 
-var settingKeys = []string{"shop_name", "address", "currency", "receipt_footer", "daily_send_cap", "pay_link", "sells", "ucp_enabled"}
+var settingKeys = []string{"shop_name", "address", "currency", "receipt_footer", "daily_send_cap", "pay_link", "sells", "ucp_enabled", "privacy_note"}
 
 func (a *App) settings(w http.ResponseWriter, r *http.Request) {
 	d := map[string]any{"V": a.values(append(settingKeys, "qr_path", "upi_id", "upi_name", "pay_note")...), "H": a.hoursForm(), "Msg": r.URL.Query().Get("msg"), "Ret": "settings", "Refresh": a.pairing(), "Pay": a.payForm(r.URL.Query().Get("pay"), false)}
@@ -531,7 +535,11 @@ func (a *App) orders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	a.page(w, "orders", map[string]any{"Orders": list, "OrdersCSV": a.ordersCSV(), "Msg": r.URL.Query().Get("msg")})
+	d := map[string]any{"Orders": list, "OrdersCSV": a.ordersCSV(), "Msg": r.URL.Query().Get("msg"), "PubPhones": a.S.pubPhones()}
+	if a.Tunnel != nil {
+		d["PubURL"] = a.Tunnel.URL()
+	}
+	a.page(w, "orders", d)
 }
 
 // setStatus moves an order one step (or cancels it), updates the files, and tells the customer.
@@ -627,7 +635,7 @@ func (a *App) channelRows() []chanRow {
 		return rows
 	}
 	for _, ch := range a.Hub.List() {
-		if ch.Name() == "terminal" {
+		if ch.Name() == "terminal" || ch.Name() == pubChannel { // the Website card shows the public chat
 			continue
 		}
 		r := chanRow{Name: ch.Name(), Account: ch.Account(), Status: ch.Status()}
@@ -664,6 +672,7 @@ func (a *App) channelData(d map[string]any) {
 	d["Chans"] = a.channelRows()
 	d["TG"] = MaskToken(a.S.Get("telegram_token"))
 	d["NextWA"] = a.nextWAName()
+	a.websiteData(d)
 	if a.pairing() {
 		d["Refresh"] = true
 	}

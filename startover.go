@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,7 +138,7 @@ func (a *App) clearData() error {
 	defer tx.Rollback()
 	for _, q := range []string{
 		`DELETE FROM receipts`, `DELETE FROM invoices`, `DELETE FROM order_items`, `DELETE FROM orders`,
-		`DELETE FROM customers`, `DELETE FROM chat_log`, `DELETE FROM web_messages`, `DELETE FROM handoffs`, `DELETE FROM blocks`,
+		`DELETE FROM customers`, `DELETE FROM chat_log`, `DELETE FROM web_messages`, `DELETE FROM pub_messages`, `DELETE FROM pub_users`, `DELETE FROM push_subs`, `DELETE FROM handoffs`, `DELETE FROM blocks`,
 		`UPDATE slots SET used=0`,
 		// order and invoice numbers (INV-<order>) start again at 1042
 		`UPDATE sqlite_sequence SET seq=1041 WHERE name='orders'`,
@@ -173,6 +175,7 @@ func (a *App) ResetShop(disconnect bool) (string, error) {
 	if err := a.clearData(); err != nil {
 		return dir, err
 	}
+	a.releaseLinkBestEffort()
 	keep := []string{"port"}
 	if disconnect {
 		a.disconnectChannels()
@@ -243,4 +246,23 @@ func (sf *ShopFile) Empty() error {
 	}
 	sf.mod, sf.loaded, sf.nProd, sf.nFAQ, sf.lastErr = modTime(sf.Path), time.Time{}, 0, 0, ""
 	return nil
+}
+
+// releaseLinkBestEffort gives the free fixed link back and signs out before a shop is deleted, so
+// the name does not stay tied to a shop that no longer exists. Failures do not stop the reset.
+func (a *App) releaseLinkBestEffort() {
+	if a.Tunnel != nil {
+		a.Tunnel.halt()
+	}
+	if a.Links == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := ReleaseLink(ctx, a.S, a.Links); err != nil {
+		log.Printf("start over: free link not released: %v", err)
+	}
+	if err := SignOutLink(ctx, a.S, a.Links); err != nil {
+		log.Printf("start over: link service sign-out: %v", err)
+	}
 }

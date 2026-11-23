@@ -80,7 +80,7 @@ func OpenStore(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema + webSchema); err != nil {
+	if _, err := db.Exec(schema + webSchema + pubSchema); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
 	// Order numbers start at 1042 so they look like a real shop's.

@@ -3,8 +3,7 @@ version: '3'
 vars:
   WHISPER_VERSION: v1.9.0
   LLAMA_TAG: b9620 # llama.cpp release with Qwen3.5 and --jinja tool calls
-  WACLI_COMMIT: 5578d1b6892f50a8f2329b11a6b6e27a1a81f88b # github.com/openclaw/wacli commit the installers are built from
-  WACLI_SRC: '{{.WACLI_SRC | default "third_party/wacli-src"}}' # wacli source; cloned at WACLI_COMMIT when missing
+  WACLI_SRC: '{{.WACLI_SRC | default "../apl/external/wacli"}}' # wacli source (upstream project wacli, MIT)
 
 tasks:
   voice-deps:
@@ -33,15 +32,13 @@ tasks:
       - test -f bundled/windows-amd64/wacli.exe -a -f bundled/windows-amd64/llama-server.exe
       - test -f bundled/windows-arm64/wacli.exe -a -f bundled/windows-arm64/llama-server.exe
     cmds:
-      - test -d "{{.WACLI_SRC}}" || (git clone -q https://github.com/openclaw/wacli "{{.WACLI_SRC}}" && git -C "{{.WACLI_SRC}}" checkout -q {{.WACLI_COMMIT}})
-      - mkdir -p third_party && rsync -a --delete --exclude .git --exclude .agents --exclude .github "{{.WACLI_SRC}}/" third_party/wacli/
+      - mkdir -p third_party && rsync -a --delete --exclude .git "{{.WACLI_SRC}}/" third_party/wacli/
       - LLAMA_TAG={{.LLAMA_TAG}} sh scripts/bundle-deps.sh
 
   linux-arm64:
     desc: static linux/arm64 ownshop for Termux on Android (zig, aarch64-linux-musl) with wacli, llama-server and voice inside; dist/ownshop-linux-arm64.tar.gz with models and run-termux.sh
     cmds:
-      - test -d "{{.WACLI_SRC}}" || (git clone -q https://github.com/openclaw/wacli "{{.WACLI_SRC}}" && git -C "{{.WACLI_SRC}}" checkout -q {{.WACLI_COMMIT}})
-      - mkdir -p third_party && rsync -a --delete --exclude .git --exclude .agents --exclude .github "{{.WACLI_SRC}}/" third_party/wacli/
+      - mkdir -p third_party && rsync -a --delete --exclude .git "{{.WACLI_SRC}}/" third_party/wacli/
       - LLAMA_TAG={{.LLAMA_TAG}} WHISPER_VERSION={{.WHISPER_VERSION}} sh scripts/linux-arm64.sh
 
   check:

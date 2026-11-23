@@ -24,6 +24,8 @@
       <a class="hide-sm" href="/#how">How it works</a>
       <a class="hide-sm" href="/#free">Why free</a>
       <a href="/manual/">Manual</a>
+      <a href="/#support">Support</a>
+      <a class="hide-sm" href="https://github.com/ownshopai/ownshopai" target="_blank" rel="noopener" data-event="cta_click" data-cta="nav-github">GitHub <span class="js-stars"></span></a>
       <a class="btn sm" href="/#download" data-cta="nav">Download</a>
     </nav>
   </div>
@@ -39,6 +41,7 @@
       <div class="cta-row">
         <a class="btn js-dl" href="#download" data-cta="hero">Download free</a>
         <a class="btn ghost" href="#demo" data-cta="hero-demo">Watch the demo</a>
+        <a class="btn ghost" href="https://github.com/ownshopai/ownshopai" target="_blank" rel="noopener" data-event="cta_click" data-cta="hero-github">Star on GitHub <span class="js-stars"></span></a>
       </div>
       <p class="fine js-dl-note">Windows (x64 or ARM64) and Mac with Apple silicon. About 700 MB, the AI model is included.</p>
     </div>
@@ -76,7 +79,7 @@ Reply YES to confirm order 1042.</div>
     <div class="steps">
       <div class="step"><h3>Install</h3><p>Double-click the download. OwnShop AI installs itself and opens the setup in your browser.</p><img class="shot step-shot" src="/docs/manual/m-setup-shop.png" alt="Setup step 1: shop name, currency, products or services" loading="lazy" width="1000" height="540"></div>
       <div class="step"><h3>Upload your Excel sheet</h3><p>Products, prices, stock and your own questions and answers. Or pick your business type for bookings.</p><img class="shot step-shot" src="/docs/manual/m-setup-products.png" alt="Setup step 2: upload the products file" loading="lazy" width="1000" height="560"></div>
-      <div class="step"><h3>Connect WhatsApp or Telegram</h3><p>Scan a code with your phone, or paste a Telegram bot token. The web chat works right away for testing.</p><img class="shot step-shot" src="/docs/manual/m-setup-channels.png" alt="Setup step 4: connect a chat channel" loading="lazy" width="1000" height="900"></div>
+      <div class="step"><h3>Connect WhatsApp or Telegram</h3><p>Scan a code with your phone, paste a Telegram bot token, or your own web chat link (free, via Cloudflare). The web chat works right away for testing.</p><img class="shot step-shot" src="/docs/manual/m-setup-channels.png" alt="Setup step 4: connect a chat channel" loading="lazy" width="1000" height="900"></div>
     </div>
     <p class="fine" style="margin-top:20px">Every step, with screenshots: <a href="/manual/">the manual</a>.</p>
   </div>
@@ -173,13 +176,36 @@ Reply YES to confirm order 1042.</div>
   <div class="wrap narrow">
     <h2>Questions</h2>
     <details><summary>Is it really free?</summary><p>Yes. It is open source under the MIT license, with no plan and no AI bill: the model runs on your computer. The only running cost is keeping your computer on and online.</p></details>
-    <details><summary>Is my data safe?</summary><p>Your products, orders and chats stay in files on your computer, and the AI runs there too. Messages travel only through WhatsApp or Telegram, between your customers and your computer. Keep your computer itself secure and backed up.</p></details>
+    <details><summary>Is my data safe?</summary><p>Your products, orders and chats stay in files on your computer, and the AI runs there too. Messages travel only through WhatsApp, Telegram or, for the web chat link, Cloudflare, between your customers and your computer. Keep your computer itself secure and backed up.</p></details>
     <details><summary>Will WhatsApp ban my number?</summary><p>It can. The WhatsApp link is unofficial, and WhatsApp may block numbers that use unofficial clients. OwnShop AI only answers people who wrote first, at a human pace, but that is no guarantee. Use a spare number, or use Telegram, which is official.</p></details>
+    <details><summary>Do I need a website or domain?</summary><p>No. Customers can reach you on WhatsApp or Telegram, or on your own web chat link, free through Cloudflare's tunnel: a random link with no sign-up, a free fixed name.ownshopai.store link, or your own domain if you have one. Your computer has to stay on for the link to answer, and Cloudflare carries that traffic. See <a href="/manual/web-chat-link/">Put your chat on the web</a>.</p></details>
     <details><summary>Do I need a technical person?</summary><p>No. You download one file, double-click it, and do the setup in your browser. If you can edit an Excel sheet, you can run it. The <a href="/manual/">manual</a> has every step with screenshots.</p></details>
     <details><summary>What computer do I need?</summary><p>A Windows 10 or 11 PC (x64 or ARM64) or a Mac with Apple silicon, with about 1.5 GB free disk space, about 1 GB of free memory while it runs, and an internet connection. It must stay on while you want customers answered.</p></details>
     <details><summary>Does it take payments?</summary><p>No. It sends your payment details with the invoice: a payment link, a QR code image, bank transfer text or UPI. You check that the money arrived and click Payment received.</p></details>
     <details><summary>I sell services, not products. Does it work?</summary><p>Yes. Choose Services in the first setup step and pick your kind of business. Customers write things like "book Haircut" and pick a day and time.</p></details>
-    <details><summary>I need the official WhatsApp Business Platform.</summary><p>OwnShop AI does not use it. For a real business on the official platform, talk to <a href="https://deemwar.com">deemwar</a>.</p></details>
+    </div>
+</section>
+
+<section id="opensource" class="alt">
+  <div class="wrap">
+    <h2>Open source. Yours to keep.</h2>
+    <p class="section-lede">MIT license. Read every line, run it, change it, or build your own version for your clients. If it helps your shop, a star helps other shops find it.</p>
+    <div class="grid">
+      <div class="card"><h3>Star</h3><p>Show it is useful and follow new releases.</p><p><a class="btn" href="https://github.com/ownshopai/ownshopai" target="_blank" rel="noopener" data-event="cta_click" data-cta="os-star">Star on GitHub <span class="js-stars"></span></a></p></div>
+      <div class="card"><h3>Fork</h3><p>Make it your own: your language, your channels, your features.</p><p><a class="btn ghost" href="https://github.com/ownshopai/ownshopai/fork" target="_blank" rel="noopener" data-event="cta_click" data-cta="os-fork">Fork it</a></p></div>
+      <div class="card"><h3>Download or build</h3><p>Get the installers above, or clone the code and build it with Go.</p><p><a class="btn ghost" href="https://github.com/ownshopai/ownshopai#build-from-source" target="_blank" rel="noopener" data-event="cta_click" data-cta="os-source">See the code</a></p></div>
+    </div>
+  </div>
+</section>
+
+<section id="support">
+  <div class="wrap">
+    <h2>Support</h2>
+    <p class="section-lede">Free help in the open, or premium support from deemwar when you want it done for you.</p>
+    <div class="grid">
+      <div class="card"><h3>Free support</h3><p>Questions, bugs and feature requests: raise an issue on GitHub. Everyone can see the answer, so the next shop gets it too.</p><p><a class="btn ghost" href="https://github.com/ownshopai/ownshopai/issues" target="_blank" rel="noopener" data-event="cta_click" data-cta="support-free">Raise an issue</a></p></div>
+      <div class="card"><h3>Premium support</h3><p>Setup done for you, priority help and custom features. Join the deemwar WhatsApp group and tell us what you need.</p><p><a class="btn" href="https://chat.whatsapp.com/K4SliNSSW9PEnNlQr7IesZ" target="_blank" rel="noopener" data-event="cta_click" data-cta="support-premium">Talk to deemwar on WhatsApp</a></p></div>
+    </div>
   </div>
 </section>
 
@@ -187,7 +213,7 @@ Reply YES to confirm order 1042.</div>
   <div class="wrap narrow" style="text-align:center">
     <h2>Let your shop answer while you work.</h2>
     <div class="cta-row" style="justify-content:center"><a class="btn js-dl" href="#download" data-cta="final">Download free</a><a class="btn ghost" href="/manual/">Read the manual</a></div>
-    <p class="fine">Need it for a real business on the official WhatsApp platform? <a href="https://deemwar.com">Talk to deemwar</a>.</p>
+    <p class="fine">Free help: <a href="https://github.com/ownshopai/ownshopai/issues" target="_blank" rel="noopener">raise an issue on GitHub</a>. Premium support, setup done for you and custom features: <a href="https://chat.whatsapp.com/K4SliNSSW9PEnNlQr7IesZ" target="_blank" rel="noopener" data-event="cta_click" data-cta="support-group">talk to deemwar</a>.</p>
   </div>
 </section>
 </main>
@@ -195,7 +221,8 @@ Reply YES to confirm order 1042.</div>
 <footer>
   <div class="wrap">
     <div>Not affiliated with, endorsed by, or sponsored by WhatsApp, Meta or Telegram.</div>
-    <div><a href="/manual/">Manual</a> &nbsp;&middot;&nbsp; <a href="/docs/">Docs</a> &nbsp;&middot;&nbsp; <a href="/credits/">Credits</a> &nbsp;&middot;&nbsp; <a href="https://github.com/ownshopai/ownshopai">Source</a> &nbsp;&middot;&nbsp; built by <a href="https://deemwar.com">deemwar</a></div>
+    <div style="font-size:13px;opacity:.8">We count visits without cookies and without storing IP addresses; Do Not Track is respected. <a href="/privacy/#analytics">How</a></div>
+    <div><a href="/manual/">Manual</a> &nbsp;&middot;&nbsp; <a href="/docs/">Docs</a> &nbsp;&middot;&nbsp; <a href="/credits/">Credits</a> &nbsp;&middot;&nbsp; <a href="/privacy/">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms/">Terms</a> &nbsp;&middot;&nbsp; <a href="/#support">Support</a> &nbsp;&middot;&nbsp; <a href="https://github.com/ownshopai/ownshopai">Source</a> &nbsp;&middot;&nbsp; built by <a href="https://deemwar.com">deemwar</a></div>
   </div>
 </footer>
 <script>
@@ -208,14 +235,25 @@ Reply YES to confirm order 1042.</div>
     document.querySelectorAll(".js-dl").forEach(function (a) { a.href = t; });
     var n = document.querySelector(".js-dl-note"); if (n) n.textContent = "Downloads for " + label + " Other computers: see Download below.";
   }
-  // A demo play becomes its own page view (/demo/played/) for cookieless analytics, then the address goes back.
+  // A demo play is reported once to our own cookieless analytics (see the next script).
   var v = document.getElementById("demo-video"), sent = false;
-  if (v && history.pushState) v.addEventListener("play", function () {
-    if (sent) return; sent = true;
-    var here = location.pathname + location.search + location.hash;
-    history.pushState(null, "", "/demo/played/"); history.replaceState(null, "", here);
-  });
+  if (v) v.addEventListener("play", function () { if (sent) return; sent = true; if (window.osaT) window.osaT("demo_play", "/demo/"); });
 })();
+</script>
+<script>
+(function(){var n=navigator;if(n.doNotTrack=="1"||n.globalPrivacyControl||!n.sendBeacon)return;
+var E="https://linksapi.ownshopai.store/v1/collect",p=location.pathname,q=new URLSearchParams(location.search),r="";
+try{r=document.referrer?new URL(document.referrer).hostname:""}catch(e){}
+var w=innerWidth,s=w<600?"s":w<1024?"m":w<1600?"l":"xl",u=function(k){return(q.get(k)||"").replace(/[^\w.-]/g,"").slice(0,60)};
+function t(e,x){n.sendBeacon(E,JSON.stringify({event:e,path:x||p,ref_host:r,utm_source:u("utm_source"),utm_medium:u("utm_medium"),utm_campaign:u("utm_campaign"),screen_bucket:s}))}
+window.osaT=t;t(/^\/download\//.test(p)?"download":"pageview");
+document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("[data-cta]");if(a)t("cta_click","/cta/"+a.getAttribute("data-cta").replace(/[^\w-]/g,""))})})();
+</script>
+<script>
+(function(){try{var k="osa-stars",v=null;try{v=sessionStorage.getItem(k)}catch(e){}
+function show(n){if(n==null||n<1)return;var t=n>=1000?(n/1000).toFixed(1)+"k":String(n);document.querySelectorAll(".js-stars").forEach(function(e){e.textContent="("+t+")"})}
+if(v){show(+v);return}
+fetch("https://api.github.com/repos/ownshopai/ownshopai").then(function(r){return r.ok?r.json():null}).then(function(d){if(d&&typeof d.stargazers_count=="number"){show(d.stargazers_count);try{sessionStorage.setItem(k,d.stargazers_count)}catch(e){}}}).catch(function(){})}catch(e){}})();
 </script>
 </body>
 </html>

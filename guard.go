@@ -73,8 +73,8 @@ func (g *Guard) Send(c Customer, o Out) error {
 	}
 	g.last[chat] = g.Now().Add(max(wait, 0) + typingDelay(o.Text))
 	g.mu.Unlock()
-	if c.Channel == webChannel {
-		return g.Inner.Send(c, o) // the local test chat needs no human pacing
+	if c.Channel == webChannel || c.Channel == pubChannel {
+		return g.Inner.Send(c, o) // web chats need no human pacing (the cap above still counts)
 	}
 
 	if wait > 0 {

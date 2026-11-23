@@ -12,6 +12,9 @@ S=dist/mac-stage; rm -rf "$S"; A="$S/OwnShop AI.app/Contents"
 mkdir -p "$A/MacOS" "$A/Resources/models"
 cp dist/ownshop-darwin-arm64 "$A/MacOS/ownshop"
 cp models/qwen35-0.8b-q4km.gguf models/ggml-base.bin "$A/Resources/models/"
+for f in THIRD-PARTY-NOTICES CREDITS LICENSE; do test -f $f || { echo "$f missing"; exit 1; }; done
+cp THIRD-PARTY-NOTICES CREDITS LICENSE bundled/LICENSE.* "$A/Resources/"
+cp THIRD-PARTY-NOTICES "$S/"
 cat > "$A/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
