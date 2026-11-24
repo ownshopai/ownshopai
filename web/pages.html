@@ -1,11 +1,14 @@
 {{define "head"}}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OwnShop AI - {{.Shop}}</title><link rel="stylesheet" href="/style.css">{{if .Refresh}}<meta http-equiv="refresh" content="5">{{end}}</head>
+<title>OwnShop AI - {{.Shop}}</title><link rel="stylesheet" href="/style.css">{{if .Refresh}}<meta http-equiv="refresh" content="5">{{end}}
+<script>function ownFolder(act,which,b){const t=b.textContent;fetch('/folder/'+act,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'fetch'},body:'which='+encodeURIComponent(which)}).then(r=>{if(!r.ok)throw 0;return act=='path'?r.json():null}).then(j=>j?navigator.clipboard.writeText(j.path):null).then(()=>{b.textContent=act=='path'?'Copied':'Opened';setTimeout(()=>b.textContent=t,2000)}).catch(()=>{b.textContent='Could not '+(act=='path'?'copy':'open');setTimeout(()=>b.textContent=t,3000)})}</script></head>
 <body><header><strong>{{.Shop}}</strong>
 {{if not .Setup}}{{range $p := .Nav}}<a href="/{{index $p 0}}" {{if eq (index $p 0) $.Page}}class="on"{{end}}>{{index $p 1}}</a>{{end}}{{end}}
 </header><main>{{if .Msg}}<div class="msg">{{.Msg}}</div>{{end}}{{end}}
 
 {{define "foot"}}</main><footer>{{if not .Setup}}<a href="/settings#start-over">Start over</a><br>{{end}}built with love by <a href="https://deemwar.com">deemwar.com</a> · <a href="https://ownshopai.store/privacy/" target="_blank" rel="noopener">Privacy</a> · <a href="https://ownshopai.store/terms/" target="_blank" rel="noopener">Terms</a><br>Not affiliated with, endorsed by, or sponsored by WhatsApp, Meta or Telegram.</footer></body></html>{{end}}
+
+{{define "folder"}}<span class="row folder"><button type="button" class="ghost" onclick="ownFolder('open','{{.}}',this)">Open folder</button><button type="button" class="ghost" onclick="ownFolder('path','{{.}}',this)">Copy folder path</button></span>{{end}}
 
 {{define "steps"}}<p class="steps">{{range $i, $s := .Steps}}{{if and $s.Href (ne (inc $i) $.Step)}}<a href="{{$s.Href}}">{{inc $i}}. {{$s.Label}}</a>{{else}}<span {{if eq (inc $i) $.Step}}class="on"{{end}}>{{inc $i}}. {{$s.Label}}</span>{{end}}{{end}}</p>{{end}}
 
@@ -223,7 +226,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 <li>Mac: run <code>brew install cloudflared</code> in Terminal</li>
 <li>Or <a href="{{.DownloadURL}}" target="_blank" rel="noopener">Download cloudflared</a> from Cloudflare.</li></ul>
 <form method="post" action="/channels/website/check?ret={{$.Ret}}"><button class="ghost">Check again</button></form>
-{{else}}<p class="muted">Cloudflare's tunnel program {{if .Version}}{{.Version}} {{end}}found at <code>{{.Path}}</code>.</p>
+{{else}}<p class="muted">Cloudflare's tunnel program {{if .Version}}{{.Version}} {{end}}is installed on this computer.</p>
 {{if eq .State "on"}}<p>Your public chat link: <a href="{{.URL}}" target="_blank" rel="noopener"><strong>{{.URL}}</strong></a>
 <button type="button" class="ghost" onclick="navigator.clipboard.writeText('{{.URL}}');this.textContent='Copied'">Copy</button></p>
 <p><img src="/channels/website/qr.png" alt="QR code of your public chat link" width="260" height="260"></p>
@@ -284,7 +287,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 <div class="card"><p>This deletes everything in the shop: orders, customers, chats, bookings, products and services, photos, the payment QR and all settings. Then you set up a new shop from step 1.</p>
 <p class="muted">Kept: the shop's address on this computer (port), and WhatsApp and Telegram unless you tick the box below.</p></div>{{end}}
 <form class="card" method="post" action="/start-over/{{.Kind}}">
-<p class="muted">A backup is written to <code>{{.Backups}}</code> first.</p>
+<p class="muted">A backup is written first, to the backups folder inside your OwnShop folder. {{template "folder" "backups"}}</p>
 {{if eq .Kind "reset"}}<label class="choice"><input type="checkbox" name="disconnect" value="on"> Also disconnect WhatsApp and Telegram</label>{{end}}
 <label for="confirm">Type the shop name ({{.Shop}}) or CLEAR to confirm</label><input type="text" id="confirm" name="confirm" autocomplete="off" required autofocus>
 <p class="row"><button>{{if eq .Kind "clear"}}Clear test data{{else}}Delete this shop{{end}}</button><a href="/settings">Cancel</a></p></form>
@@ -293,12 +296,12 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{define "products"}}{{template "head" .}}
 <h1>{{if eq .Sells "services"}}Services{{else}}Products{{end}}</h1>
 {{if .Ignored}}<p class="warn">{{.Ignored}}</p>{{end}}
-<div class="card"><p>Your file: <code>{{.File.Path}}</code></p>
+<div class="card"><p>Your file: <code>products.xlsx</code> in your OwnShop folder. {{template "folder" "data"}}</p>
 {{if .File.Err}}<p class="warn">{{.File.Err}}</p>{{end}}
 <p class="muted">{{if .File.Loaded}}Read at {{.File.Loaded}}: {{plural .File.Products "row"}}, {{plural .File.FAQ "question"}}.{{else}}Not read yet.{{end}} Edit the file on your computer and save it; the shop reads it again by itself. Stock is written back into it after each order.</p>
 <form class="row" method="post" action="/products/reload"><button>I updated my file</button></form>
 <form class="row" method="post" action="/products/upload" enctype="multipart/form-data" style="margin-top:8px"><input type="file" name="file" accept=".xlsx"><button class="ghost">Replace with another file</button></form></div>
-<div class="card"><p class="muted">Photos: put a file named after the product ID in <code>{{.ImagesDir}}</code> (for example <code>HONEY-01.jpg</code>), or upload one below. Customers see it when they search, add to their order, and on the invoice.</p>
+<div class="card"><p class="muted">Photos: put a file named after the product ID in the images folder inside your OwnShop folder {{template "folder" "images"}} (for example <code>HONEY-01.jpg</code>), or upload one below. Customers see it when they search, add to their order, and on the invoice.</p>
 <table><tr><th>Photo</th><th>Name</th><th>Type</th><th>Price ({{.Cur}})</th><th>Stock</th></tr>
 {{range .Products}}<tr><td class="photo">{{if index $.Photos .SKU}}<img src="/products/{{.SKU}}/photo" alt="" width="64" height="64">{{else}}<span class="muted">none</span>{{end}}
 <form method="post" action="/products/{{.SKU}}/photo" enctype="multipart/form-data"><input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" onchange="this.form.submit()" aria-label="Photo for {{.Name}}"></form></td>
@@ -311,7 +314,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{define "orders"}}{{template "head" .}}
 <h1>Orders</h1>
 {{if .PubURL}}<p class="muted">Your public web chat: <a href="{{.PubURL}}" target="_blank" rel="noopener">{{.PubURL}}</a></p>{{end}}
-<p class="muted">Also in <code>{{.OrdersCSV}}</code> (opens in Excel), kept up to date. <a href="/orders.csv">Download</a></p>
+<p class="muted">Also in <code>orders.csv</code> in your OwnShop folder (opens in Excel), kept up to date. <a href="/orders.csv">Download</a> {{template "folder" "data"}}</p>
 {{range $o := .Orders}}<div class="card" id="order-{{$o.ID}}">
 <div class="row"><strong>Order {{$o.ID}}</strong><span class="pill">{{$o.StatusLabel}}</span>{{if eq $o.Channel "ucp"}}<span class="pill">From an AI agent (UCP)</span>{{end}}
 <span class="muted">{{$o.Customer.Name}} {{with index $.PubPhones $o.Customer.Phone}}{{.}} (web, not verified){{else}}{{$o.Customer.Phone}}{{if $o.Customer.Channel}} ({{$o.Customer.Channel}}){{end}}{{end}} - {{$o.Created}}{{if $o.SlotLabel}} - delivery {{$o.SlotLabel}}{{end}}</span></div>

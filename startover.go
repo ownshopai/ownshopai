@@ -32,7 +32,7 @@ func (a *App) startOverPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	a.page(w, "startover", map[string]any{"Kind": kind, "Msg": r.URL.Query().Get("msg"), "Backups": filepath.Join(a.Dir, "backups")})
+	a.page(w, "startover", map[string]any{"Kind": kind, "Msg": r.URL.Query().Get("msg")})
 }
 
 func (a *App) startOver(w http.ResponseWriter, r *http.Request) {
@@ -59,10 +59,10 @@ func (a *App) startOver(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if kind == startClear {
-		back(w, r, "/orders", "Test orders, customers and chats are cleared. Backup: "+dir)
+		back(w, r, "/orders", "Test orders, customers and chats are cleared. A backup is in the backups folder inside your OwnShop folder ("+filepath.Base(dir)+").")
 		return
 	}
-	back(w, r, "/setup/1", "The old shop is deleted. Set up your new shop. Backup of the old one: "+dir)
+	back(w, r, "/setup/1", "The old shop is deleted. Set up your new shop. A backup of the old one is in the backups folder inside your OwnShop folder ("+filepath.Base(dir)+").")
 }
 
 // lock holds the bot's message lock so no customer message is handled halfway through.

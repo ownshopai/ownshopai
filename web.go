@@ -133,7 +133,8 @@ func (a *App) Routes() http.Handler {
 	a.webchatRoutes(m)
 	a.usersRoutes(m)
 	a.websiteRoutes(m)
-	return m
+	a.folderRoutes(m)
+	return a.hideDirInRedirects(m)
 }
 
 func (a *App) page(w http.ResponseWriter, name string, data map[string]any) {
@@ -155,11 +156,11 @@ func (a *App) page(w http.ResponseWriter, name string, data map[string]any) {
 	data["Nav"] = append(nav, [2]string{"faq", "FAQ"}, [2]string{"chats", "Chats"}, [2]string{"users", "Users"}, [2]string{"settings", "Settings"})
 	var b bytes.Buffer
 	if err := pages.ExecuteTemplate(&b, name, data); err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, a.hideDir(err.Error()), 500)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(b.Bytes())
+	w.Write(a.hideDirBytes(b.Bytes()))
 }
 
 func back(w http.ResponseWriter, r *http.Request, path, msg string) {
@@ -385,7 +386,7 @@ func (a *App) uploadProducts(okPath, failPath string) http.HandlerFunc {
 		}
 		a.File.Load()
 		st := a.File.Status()
-		back(w, r, okPath, fmt.Sprintf("Read %d products and %d questions. Your file is kept at %s.", st.Products, st.FAQ, st.Path))
+		back(w, r, okPath, fmt.Sprintf("Read %d products and %d questions. Your file is kept as products.xlsx in %s.", st.Products, st.FAQ, ownFolder))
 	}
 }
 
@@ -417,7 +418,7 @@ func (a *App) products(w http.ResponseWriter, r *http.Request) {
 	for _, p := range ps {
 		photos[p.SKU] = ProductImage(ImagesDir(a.Dir), p.SKU) != ""
 	}
-	a.page(w, "products", map[string]any{"Products": ps, "Photos": photos, "ImagesDir": ImagesDir(a.Dir), "File": a.File.Status(), "Ignored": ignored, "Msg": r.URL.Query().Get("msg")})
+	a.page(w, "products", map[string]any{"Products": ps, "Photos": photos, "File": a.File.Status(), "Ignored": ignored, "Msg": r.URL.Query().Get("msg")})
 }
 
 // ---- settings ----
@@ -537,7 +538,7 @@ func (a *App) orders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	d := map[string]any{"Orders": list, "OrdersCSV": a.ordersCSV(), "Msg": r.URL.Query().Get("msg"), "PubPhones": a.S.pubPhones()}
+	d := map[string]any{"Orders": list, "Msg": r.URL.Query().Get("msg"), "PubPhones": a.S.pubPhones()}
 	if a.Tunnel != nil {
 		d["PubURL"] = a.Tunnel.URL()
 	}
