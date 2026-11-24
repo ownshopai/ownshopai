@@ -154,7 +154,7 @@ func TestPublicSigninAndChat(t *testing.T) {
 	if rr, _ := br.do("GET", "/api/messages", nil); rr.Code != 401 {
 		t.Fatalf("messages before sign-in: %d", rr.Code)
 	}
-	for _, bad := range []map[string]string{{"name": "", "phone": "+15551234567"}, {"name": "Ana", "phone": "12"},
+	for _, bad := range []map[string]string{{"name": "Ana"}, {"name": "Ana", "phone": "12"},
 		{"name": "Ana", "phone": "call me"}, {"name": "Ana", "phone": "+1234567890123456"}} {
 		if rr, _ := br.do("POST", "/api/signin", bad); rr.Code != 400 {
 			t.Errorf("bad sign-in %v accepted: %d", bad, rr.Code)
@@ -316,26 +316,6 @@ func TestCleanPhone(t *testing.T) {
 	}
 }
 
-func TestParseTunnelURL(t *testing.T) {
-	out := `2026-11-23T10:00:00Z INF Requesting new quick Tunnel on trycloudflare.com...
-2026-11-23T10:00:01Z INF +--------------------------------------------------------------------------------------------+
-2026-11-23T10:00:01Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
-2026-11-23T10:00:01Z INF |  https://brave-lemon-sky-tree.trycloudflare.com                                            |
-2026-11-23T10:00:01Z INF +--------------------------------------------------------------------------------------------+`
-	var got string
-	for _, l := range strings.Split(out, "\n") {
-		if u := parseTunnelURL(l); u != "" && got == "" {
-			got = u
-		}
-	}
-	if got != "https://brave-lemon-sky-tree.trycloudflare.com" {
-		t.Fatalf("got %q", got)
-	}
-	if u := parseTunnelURL("see https://api.trycloudflare.com/tunnel"); u != "" {
-		t.Fatalf("api host taken as the link: %q", u)
-	}
-}
-
 func TestFindCloudflared(t *testing.T) {
 	dir := t.TempDir()
 	fake := filepath.Join(dir, "cloudflared")
@@ -389,44 +369,12 @@ func waitState(t *testing.T, tn *Tunnel, want string) {
 	t.Fatalf("state %q, want %q", tn.View().State, want)
 }
 
-func TestTunnelQuickMode(t *testing.T) {
-	s, _ := setup(t)
-	bin, log := fakeCloudflared(t)
-	tn := &Tunnel{S: s, Port: 2008, Find: func() string { return bin }}
-	for i := 0; i < 5 && tn.View().Version == ""; i++ { // a just-written script can be "text file busy" for a moment
-		tn.Detect()
-		time.Sleep(50 * time.Millisecond)
-	}
-	if v := tn.View(); !v.Found || v.Version != "2026.5.2" {
-		t.Fatalf("view %+v", v)
-	}
-	if err := tn.Start(); err != nil {
-		t.Fatal(err)
-	}
-	waitState(t, tn, "on")
-	if tn.URL() != "https://fake-quick-link.trycloudflare.com" || tn.PublicHost() != "fake-quick-link.trycloudflare.com" {
-		t.Fatalf("url %q", tn.URL())
-	}
-	b, _ := os.ReadFile(log)
-	if !strings.Contains(string(b), "tunnel --no-autoupdate --url http://127.0.0.1:2008") {
-		t.Fatalf("args %s", b)
-	}
-	if s.Get(setWebPublic) != "on" {
-		t.Fatal("on state not saved")
-	}
-	tn.Stop()
-	if tn.PublicHost() != "" || s.Get(setWebPublic) != "" {
-		t.Fatal("still up after Stop")
-	}
-}
-
-func TestTunnelTokenModeKeepsTokenSecret(t *testing.T) {
+func TestTunnelLinkKeepsTokenSecret(t *testing.T) {
 	s, _ := setup(t)
 	bin, log := fakeCloudflared(t)
 	const secret = "eyJhIjoiZmFrZS10b2tlbi1mb3ItdGVzdHMifQ" // gitleaks:allow (base64 of a fake test token)
-	s.Set(setWebTunnelToken, secret)
-	s.Set(setWebTunnelHost, "chat.example.com")
-	s.Set(setWebMode, "token")
+	s.Set(setLinkToken, secret)
+	s.Set(setLinkHost, "chat.ownshopai.store")
 	tn := &Tunnel{S: s, Port: 2008, Find: func() string { return bin }}
 	cmd := tn.command(bin)
 	if strings.Contains(strings.Join(cmd.Args, " "), secret) {
@@ -442,7 +390,7 @@ func TestTunnelTokenModeKeepsTokenSecret(t *testing.T) {
 	}
 	waitState(t, tn, "on")
 	defer tn.Stop()
-	if tn.URL() != "https://chat.example.com" {
+	if tn.URL() != "https://chat.ownshopai.store" {
 		t.Fatalf("url %q", tn.URL())
 	}
 	b, _ := os.ReadFile(log)
@@ -459,8 +407,8 @@ func TestTunnelTokenModeKeepsTokenSecret(t *testing.T) {
 	app := &App{S: s, Hub: NewHub(nil), Tunnel: tn, Dir: t.TempDir()}
 	rr := httptest.NewRecorder()
 	app.Routes().ServeHTTP(rr, httptest.NewRequest("GET", "/settings", nil))
-	if strings.Contains(rr.Body.String(), secret) || !strings.Contains(rr.Body.String(), "Token saved.") {
-		t.Fatal("settings page shows the token, or not that it is saved")
+	if strings.Contains(rr.Body.String(), secret) || !strings.Contains(rr.Body.String(), "https://chat.ownshopai.store") {
+		t.Fatal("settings page shows the token, or not the link")
 	}
 }
 
@@ -527,10 +475,13 @@ func (br *browser) lastBody(h http.Handler) string {
 // ---- free fixed link (link service fake) ----
 
 type fakeLinks struct {
+	down                                                          bool
 	exchanged, claimed, released, revoked, beats, tokens, rotated int
 	lastKey, lastVerifier, lastChallenge                          string
 	info                                                          LinkInfo
 }
+
+func (f *fakeLinks) Up(context.Context) bool { return !f.down }
 
 func (f *fakeLinks) LoginURL(state, challenge, ret string) string {
 	f.lastChallenge = challenge
@@ -614,9 +565,6 @@ func TestFreeLinkSignInClaimRelease(t *testing.T) {
 		t.Fatalf("claim %q %v", host, err)
 	}
 	tn := &Tunnel{S: s, Port: 2008}
-	if tn.Mode() != "link" {
-		t.Fatalf("mode %q", tn.Mode())
-	}
 	cmd := tn.command("/bin/cloudflared")
 	if strings.Contains(strings.Join(cmd.Args, " "), "tunnel-secret-xyz") || !slices.Contains(cmd.Env, "TUNNEL_TOKEN=tunnel-secret-xyz") {
 		t.Fatalf("link mode command %v", cmd.Args)
@@ -701,9 +649,8 @@ func captureLog(t *testing.T, w io.Writer) {
 func TestFixedLinkNeedsPort2008(t *testing.T) {
 	s, _ := setup(t)
 	bin, _ := fakeCloudflared(t)
-	s.Set(setWebTunnelToken, "tok")
-	s.Set(setWebTunnelHost, "chat.example.com")
-	s.Set(setWebMode, "token")
+	s.Set(setLinkToken, "tok")
+	s.Set(setLinkHost, "chat.ownshopai.store")
 	tn := &Tunnel{S: s, Port: 2009, Find: func() string { return bin }}
 	if err := tn.Start(); err == nil || !strings.Contains(err.Error(), "2008") {
 		t.Fatalf("fixed link started on port 2009: %v", err)
@@ -721,7 +668,7 @@ func TestWebsiteOwnerRoutesRefuseOtherSites(t *testing.T) {
 	app := &App{S: s, Hub: NewHub(nil), Tunnel: &Tunnel{S: s, Port: 2008}, Links: &fakeLinks{}, Dir: t.TempDir()}
 	h := app.Routes()
 	post := func(host, origin string) int {
-		req := httptest.NewRequest("POST", "/channels/website/token", strings.NewReader("token=evil-token&host=evil.example.com"))
+		req := httptest.NewRequest("POST", "/channels/website/start", strings.NewReader(""))
 		req.Host = host
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		if origin != "" {
@@ -736,10 +683,10 @@ func TestWebsiteOwnerRoutesRefuseOtherSites(t *testing.T) {
 			t.Errorf("host %s origin %s: %d", c[0], c[1], code)
 		}
 	}
-	if s.Get(setWebTunnelToken) != "" {
-		t.Fatal("a foreign page saved a tunnel token")
+	if s.Get(setWebPublic) != "" {
+		t.Fatal("a foreign page turned the public link on")
 	}
-	if code := post("127.0.0.1:2007", "http://127.0.0.1:2007"); code != 303 || s.Get(setWebTunnelToken) != "evil-token" {
+	if code := post("127.0.0.1:2007", "http://127.0.0.1:2007"); code != 303 || s.Get(setWebPublic) != "on" {
 		t.Fatalf("owner post: %d", code)
 	}
 }
@@ -852,5 +799,75 @@ func TestPublicSigninWithEmail(t *testing.T) {
 	}
 	if got := s.pubPhones()[us[1].Key()]; got != "mia@example.com" {
 		t.Fatalf("owner pages see %q", got)
+	}
+}
+
+func TestPublicSigninNameOptionalIdentifierRequired(t *testing.T) {
+	s, _, h, _ := pubShop(t)
+	br := &browser{t: t, h: h, ip: "198.51.100.40"}
+	if rr, _ := br.do("POST", "/api/signin", map[string]string{"name": "Only A Name"}); rr.Code != 400 {
+		t.Fatalf("name without phone or email: %d", rr.Code)
+	}
+	if rr, _ := br.do("POST", "/api/signin", map[string]string{"email": "nn@example.com"}); rr.Code != 200 {
+		t.Fatalf("email without name: %d %s", rr.Code, rr.Body)
+	}
+	us, _ := s.PubUsers()
+	if len(us) != 1 || us[0].Name != "nn@example.com" {
+		t.Fatalf("no-name user %+v", us)
+	}
+}
+
+func TestWebsiteCardComingSoonAndNoOldModes(t *testing.T) {
+	s, _ := setup(t)
+	fl := &fakeLinks{down: true}
+	app := &App{S: s, Hub: NewHub(nil), Tunnel: &Tunnel{S: s, Port: 2008}, Links: fl, Dir: t.TempDir()}
+	page := func() string {
+		linkUpCache.Lock()
+		linkUpCache.at = time.Time{}
+		linkUpCache.Unlock()
+		rr := httptest.NewRecorder()
+		app.Routes().ServeHTTP(rr, httptest.NewRequest("GET", "/settings", nil))
+		return rr.Body.String()
+	}
+	b := page()
+	if !strings.Contains(b, "Coming soon") || !strings.Contains(b, "<button disabled>Sign in with Google</button>") {
+		t.Fatal("no Coming soon while the service is down")
+	}
+	for _, gone := range []string{"Quick link", "trycloudflare", "own domain", "Tunnel token", "(recommended)"} {
+		if strings.Contains(b, gone) {
+			t.Errorf("card still offers %q", gone)
+		}
+	}
+	fl.down = false
+	b = page()
+	if strings.Contains(b, "Coming soon") || !strings.Contains(b, `action="/channels/website/signin`) {
+		t.Fatal("card does not work once the service answers")
+	}
+	for _, p := range []string{"/channels/website/token"} {
+		req := httptest.NewRequest("POST", p, nil)
+		req.Host = "127.0.0.1:2007"
+		rr := httptest.NewRecorder()
+		app.Routes().ServeHTTP(rr, req)
+		if rr.Code != 404 && rr.Code != 405 {
+			t.Errorf("%s still served: %d", p, rr.Code)
+		}
+	}
+}
+
+func TestHTTPLinkServiceUp(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/up" {
+			io.WriteString(w, "ok")
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	ls := &httpLinkService{API: srv.URL, HC: srv.Client()}
+	if !ls.Up(context.Background()) {
+		t.Fatal("up not seen")
+	}
+	srv.Close()
+	if ls.Up(context.Background()) {
+		t.Fatal("closed service seen as up")
 	}
 }

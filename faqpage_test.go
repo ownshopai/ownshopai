@@ -31,7 +31,7 @@ func TestFAQPageAddEditDelete(t *testing.T) {
 	}
 	say := func(text string) string {
 		var out bytes.Buffer
-		if err := sayCmd([]string{"--user", "ana", "--password", "secret", "--url", srv.URL, "--quiet", "300ms", "--timeout", "10s", text}, &out); err != nil {
+		if err := sayCmd([]string{"--user", "ana@example.com", "--password", "secret", "--url", srv.URL, "--quiet", "300ms", "--timeout", "10s", text}, &out); err != nil {
 			t.Fatalf("say %q: %v", text, err)
 		}
 		return out.String()

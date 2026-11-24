@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	qrcode "github.com/skip2/go-qrcode"
@@ -20,6 +21,7 @@ func (a *App) websiteData(d map[string]any) {
 	v := a.Tunnel.View()
 	d["Web"] = v
 	d["SignedIn"] = a.S.Get(setLinkAppKey) != ""
+	d["LinkUp"] = a.linkServiceUp()
 	if st, ok := strings.CutPrefix(a.S.Get(setLinkStatus), "disabled:"); ok {
 		d["LinkOff"] = map[string]string{"admin": "it was turned off by the link service team", "banned": "the account is blocked",
 			"inactive": "it was not used for a long time"}[st]
@@ -70,12 +72,6 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 		http.Redirect(w, r, ret(r)+"?msg="+urlQ(msg)+"#website", http.StatusSeeOther)
 	}
 	m.HandleFunc("POST /channels/website/start", need(func(w http.ResponseWriter, r *http.Request) {
-		if mode := r.FormValue("mode"); mode == "quick" || mode == "link" || mode == "token" {
-			a.S.Set(setWebMode, mode)
-			if a.S.Get(setWebPublic) == "on" {
-				a.Tunnel.halt()
-			}
-		}
 		if err := a.Tunnel.Start(); err != nil {
 			backTo(w, r, "Not started: "+err.Error())
 			return
@@ -109,44 +105,6 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(png)
-	}))
-	// Advanced: the owner's own Cloudflare tunnel token and hostname.
-	m.HandleFunc("POST /channels/website/token", need(func(w http.ResponseWriter, r *http.Request) {
-		if r.FormValue("remove") != "" {
-			a.S.Set(setWebTunnelToken, "")
-			a.S.Set(setWebTunnelHost, "")
-			if a.Tunnel.Mode() == "token" {
-				a.S.Set(setWebMode, "")
-				a.Tunnel.Stop()
-			}
-			backTo(w, r, "Your own tunnel token is removed.")
-			return
-		}
-		tok := strings.TrimSpace(r.FormValue("token"))
-		host := strings.ToLower(strings.TrimSpace(r.FormValue("host")))
-		host = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(host, "https://"), "http://"), "/")
-		if tok == "" && a.S.Get(setWebTunnelToken) == "" {
-			backTo(w, r, "Paste the tunnel token from Cloudflare.")
-			return
-		}
-		if strings.ContainsAny(tok, " \t\r\n") || len(tok) > 4000 {
-			backTo(w, r, "That does not look like a tunnel token.")
-			return
-		}
-		if !validHostname(host) {
-			backTo(w, r, "Type the public hostname, for example chat.myshop.com")
-			return
-		}
-		if tok != "" {
-			a.S.Set(setWebTunnelToken, tok)
-		}
-		a.S.Set(setWebTunnelHost, host)
-		a.S.Set(setWebMode, "token")
-		if err := a.restartTunnel(); err != nil {
-			backTo(w, r, "Token saved, but the link did not start: "+err.Error())
-			return
-		}
-		backTo(w, r, "Token saved. Press Make my web chat public to use https://"+host)
 	}))
 	// Free fixed link: register, verify, claim, release.
 	m.HandleFunc("GET /channels/website/available", need(func(w http.ResponseWriter, r *http.Request) {
@@ -224,15 +182,11 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 			backTo(w, r, "Not changed: "+err.Error())
 			return
 		}
-		if a.Tunnel.Mode() == "link" {
-			a.restartTunnel()
-		}
+		a.restartTunnel()
 		backTo(w, r, "Your link has a new tunnel key; the old one no longer works. The link itself is the same.")
 	}))
 	m.HandleFunc("POST /channels/website/release", need(func(w http.ResponseWriter, r *http.Request) {
-		if a.Tunnel.Mode() == "link" {
-			a.Tunnel.Stop()
-		}
+		a.Tunnel.Stop()
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		msg := "Your free link is released. Someone else can take the name now."
@@ -243,21 +197,27 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 	}))
 }
 
-func validHostname(h string) bool {
-	if len(h) < 4 || len(h) > 253 || !strings.Contains(h, ".") || strings.HasSuffix(h, "trycloudflare.com") {
-		return false
-	}
-	for _, label := range strings.Split(h, ".") {
-		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-			return false
-		}
-		for _, r := range label {
-			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
-				return false
-			}
-		}
-	}
-	return true
+func urlQ(s string) string { return url.QueryEscape(s) }
+
+var linkUpCache struct {
+	sync.Mutex
+	up bool
+	at time.Time
 }
 
-func urlQ(s string) string { return url.QueryEscape(s) }
+// linkServiceUp says whether the link service answers (GET /up, short timeout, remembered 30 s).
+// While it does not, the card says "Coming soon".
+func (a *App) linkServiceUp() bool {
+	if a.Links == nil {
+		return false
+	}
+	linkUpCache.Lock()
+	defer linkUpCache.Unlock()
+	if !linkUpCache.at.IsZero() && time.Since(linkUpCache.at) < 30*time.Second {
+		return linkUpCache.up
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	linkUpCache.up, linkUpCache.at = a.Links.Up(ctx), time.Now()
+	return linkUpCache.up
+}

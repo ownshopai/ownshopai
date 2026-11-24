@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -158,6 +159,12 @@ var weakWords = map[string]bool{"where": true, "when": true, "time": true, "what
 
 // ownerFAQ is the owner's best FAQ answer sharing a real word with the message, or "".
 func (b *Bot) ownerFAQ(text string) string {
+	a, _ := b.ownerFAQScore(text)
+	return a
+}
+
+// ownerFAQScore is ownerFAQ plus how many real words matched.
+func (b *Bot) ownerFAQScore(text string) (string, int) {
 	fs, _ := b.S.FAQs()
 	want := keySet(text)
 	for k := range want {
@@ -177,7 +184,20 @@ func (b *Bot) ownerFAQ(text string) string {
 			best, score = f.Answer, n
 		}
 	}
-	return best
+	return best, score
+}
+
+// strongOwnerFAQ is an owner FAQ answer that clearly fits: two real words in common, or one word
+// that is in the row's own keywords and names no product. It is answered in Go before the model.
+func (b *Bot) strongOwnerFAQ(text string) string {
+	a, n := b.ownerFAQScore(text)
+	if a == "" {
+		return ""
+	}
+	if n >= 2 || len(b.matchProducts(text)) == 0 {
+		return a
+	}
+	return ""
 }
 
 func (b *Bot) handoffSay(c Customer, text, reason, say string) []Out {
@@ -397,6 +417,9 @@ func (b *Bot) goFirst(c Customer, text string) (tool, calls string, outs []Out, 
 			outs, name, _ := b.builtin(c, text)
 			return name, "go:builtin_" + name, outs, true
 		}
+		if f := b.strongOwnerFAQ(text); f != "" && b.builtinMatch(text) == nil && !looksLikeOrderReply(text) {
+			return "faq", "go:owner_faq", []Out{{Text: render("faq", map[string]any{"Answer": f})}}, true
+		}
 		return "", "", nil, false
 	}
 	rest, greeted := splitGreeting(text)
@@ -412,6 +435,9 @@ func (b *Bot) goFirst(c Customer, text string) (tool, calls string, outs []Out, 
 	if b.isCatalogAsk(rest) {
 		return "search_product", "go:catalog", b.catalog(c, rest), true
 	}
+	if f := b.strongOwnerFAQ(rest); f != "" {
+		return "faq", "go:owner_faq", []Out{{Text: render("faq", map[string]any{"Answer": f})}}, true
+	}
 	if greeted {
 		return "", "", nil, false
 	}
@@ -423,6 +449,9 @@ func (b *Bot) fallback(c Customer, text string) ([]Out, bool) {
 	if outs, _, ok := b.builtin(c, text); ok {
 		return outs, true
 	}
+	if f := b.ownerFAQ(text); f != "" {
+		return []Out{{Text: render("faq", map[string]any{"Answer": f})}}, true
+	}
 	if b.isCatalogAsk(text) {
 		return b.catalog(c, text), true
 	}
@@ -430,3 +459,21 @@ func (b *Bot) fallback(c Customer, text string) ([]Out, bool) {
 }
 
 func priceText(cur string, v float64) string { return fmt.Sprintf("%s %.2f", cur, v) }
+
+// looksLikeOrderReply is a short reply that belongs to the order flow: "slot 1", "yes", "2", "3 more".
+func looksLikeOrderReply(text string) bool {
+	w := strings.Fields(strings.ToLower(strings.TrimSpace(text)))
+	if len(w) == 0 || len(w) > 3 {
+		return len(w) == 0
+	}
+	for _, x := range w {
+		switch x {
+		case "yes", "y", "ok", "okay", "no", "slot", "more", "less", "confirm", "cancel":
+			return true
+		}
+		if _, err := strconv.Atoi(x); err == nil {
+			return true
+		}
+	}
+	return false
+}

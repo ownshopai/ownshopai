@@ -81,7 +81,7 @@ func TestUsersTableAndFilters(t *testing.T) {
 	check(provTelegram, "", "", "tg:77")
 	check("", "banned", "", "tg:77")
 	check("", "support", "", p.Key())
-	check(provWebTest, "active", "", "web:ana")
+	check(provWebTest, "active", "", "web:ana@example.com")
 	check("", "", "MIA@", p.Key())
 	check("", "", "emma", "+31600000001")
 	check(provWhatsApp, "banned", "")

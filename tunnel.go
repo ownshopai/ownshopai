@@ -20,20 +20,14 @@ import (
 
 // The Website channel puts the customer web chat on a public https link through Cloudflare's free
 // tunnel program, cloudflared (Apache-2.0). It is not inside OwnShop AI: the owner installs it once
-// (winget / brew / Cloudflare's download page) and OwnShop AI finds it. Two modes:
-//   - quick tunnel (default, no account): `cloudflared tunnel --url http://127.0.0.1:<public port>`;
-//     Cloudflare prints a random https://<words>.trycloudflare.com link, new on every start;
-//   - token (Advanced): the owner made a named tunnel in Cloudflare Zero Trust with a public hostname
-//     on their own domain; `cloudflared tunnel run` with the token in TUNNEL_TOKEN (never on the
-//     command line, never logged) keeps the same link.
-// The tunnel points at the public listener (website.go), never at the owner page.
+// (winget / brew / Cloudflare's download page) and OwnShop AI finds it. The link is the free fixed
+// name.ownshopai.store from the OwnShop AI link service (linkservice_client.go): `cloudflared tunnel
+// run` with the tunnel token in TUNNEL_TOKEN (never on the command line, never logged). The tunnel
+// points at the public listener on 127.0.0.1:2008 (website.go), never at the owner page.
 
 const (
-	setWebPublic      = "web_public"       // "on" while the owner wants the link up (restarted on app start)
-	setWebMode        = "web_mode"         // "link", "quick" (default) or "token"
-	setWebTunnelToken = "web_tunnel_token" // Advanced mode: the Cloudflare tunnel token (secret)
-	setWebTunnelHost  = "web_tunnel_host"  // Advanced mode: the public hostname, e.g. chat.myshop.com
-	cloudflaredDLURL  = "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+	setWebPublic     = "web_public" // "on" while the owner wants the link up (restarted on app start)
+	cloudflaredDLURL = "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
 )
 
 // cloudflaredCandidates are the usual install places, after PATH.
@@ -61,18 +55,6 @@ func findCloudflared(lookPath func(string) (string, error), candidates []string)
 	for _, c := range candidates {
 		if st, err := os.Stat(c); err == nil && !st.IsDir() {
 			return c
-		}
-	}
-	return ""
-}
-
-var quickURLRe = regexp.MustCompile(`https://[a-z0-9][a-z0-9-]*\.trycloudflare\.com`)
-
-// parseTunnelURL finds the quick tunnel link in one line of cloudflared output.
-func parseTunnelURL(line string) string {
-	for _, u := range quickURLRe.FindAllString(line, -1) {
-		if u != "https://api.trycloudflare.com" {
-			return u
 		}
 	}
 	return ""
@@ -112,9 +94,6 @@ type TunnelView struct {
 	Found             bool
 	Path, Version     string
 	State, URL, Err   string
-	TokenSaved        bool
-	Host              string
-	Mode              string // "link", "quick" or "token"
 	LinkHost          string
 	DownloadURL, Port string
 }
@@ -134,23 +113,9 @@ func (t *Tunnel) Detect() {
 	t.mu.Unlock()
 }
 
-// Mode is the link the owner picked: "link" (free fixed name.ownshopai.store), "quick" or "token".
-func (t *Tunnel) Mode() string {
-	switch m := t.S.Get(setWebMode); m {
-	case "link", "token":
-		return m
-	}
-	return "quick"
-}
-
-// named is the token and public host of a named tunnel (link or token mode); ok=false for quick.
+// named is the free link's tunnel token and host; ok=false until a name is claimed.
 func (t *Tunnel) named() (token, host string, ok bool) {
-	switch t.Mode() {
-	case "link":
-		token, host = t.S.Get(setLinkToken), t.S.Get(setLinkHost)
-	case "token":
-		token, host = t.S.Get(setWebTunnelToken), t.S.Get(setWebTunnelHost)
-	}
+	token, host = t.S.Get(setLinkToken), t.S.Get(setLinkHost)
 	return token, host, token != "" && host != ""
 }
 
@@ -158,12 +123,10 @@ func (t *Tunnel) View() TunnelView {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	v := TunnelView{Found: t.path != "", Path: t.path, Version: t.version, State: t.state, URL: t.url, Err: t.errMsg,
-		TokenSaved: t.S.Get(setWebTunnelToken) != "", Host: t.S.Get(setWebTunnelHost), Mode: "quick",
 		DownloadURL: cloudflaredDLURL}
 	if v.State == "" {
 		v.State = "off"
 	}
-	v.Mode = t.Mode()
 	v.Port = strconv.Itoa(t.Port)
 	v.LinkHost = t.S.Get(setLinkHost)
 	return v
@@ -189,15 +152,12 @@ func (t *Tunnel) URL() string {
 	return t.url
 }
 
-// command builds the cloudflared command for the current mode. The token goes in the environment.
+// command builds the cloudflared command. The token goes in the environment.
 func (t *Tunnel) command(path string) *exec.Cmd {
-	local := "http://127.0.0.1:" + strconv.Itoa(t.Port)
-	if token, _, ok := t.named(); ok {
-		c := exec.Command(path, "tunnel", "--no-autoupdate", "run")
-		c.Env = append(os.Environ(), "TUNNEL_TOKEN="+token)
-		return c
-	}
-	return exec.Command(path, "tunnel", "--no-autoupdate", "--url", local)
+	token, _, _ := t.named()
+	c := exec.Command(path, "tunnel", "--no-autoupdate", "run")
+	c.Env = append(os.Environ(), "TUNNEL_TOKEN="+token)
+	return c
 }
 
 // Start starts the tunnel and remembers that the owner wants it on.
@@ -219,15 +179,13 @@ func (t *Tunnel) Start() error {
 	if path == "" {
 		return errors.New("Cloudflare's tunnel program (cloudflared) is not installed")
 	}
-	if t.Mode() != "quick" {
-		if _, _, ok := t.named(); !ok {
-			return errors.New("this kind of link is not set up yet")
-		}
-		// A fixed link's tunnel always points at 127.0.0.1:2008. If another program holds 2008 the
-		// public chat is not there, and whatever is there must never be put on the internet.
-		if t.Port != pubDefaultPort {
-			return fmt.Errorf("port %d is used by another program; close it and restart OwnShop AI to use this link (the quick link still works)", pubDefaultPort)
-		}
+	if _, _, ok := t.named(); !ok {
+		return errors.New("get your free link first")
+	}
+	// The link's tunnel always points at 127.0.0.1:2008. If another program holds 2008 the public
+	// chat is not there, and whatever is there must never be put on the internet.
+	if t.Port != pubDefaultPort {
+		return fmt.Errorf("port %d is used by another program; close it and restart OwnShop AI to use your link", pubDefaultPort)
 	}
 	cmd := t.command(path)
 	hideConsole(cmd)
@@ -237,16 +195,13 @@ func (t *Tunnel) Start() error {
 		pw.Close()
 		return err
 	}
-	_, host, token := t.named()
+	_, host, _ := t.named()
 	t.mu.Lock()
 	t.gen++
 	gen := t.gen
-	t.cmd, t.state, t.errMsg, t.url = cmd, "starting", "", ""
-	if token {
-		t.url = "https://" + host
-	}
+	t.cmd, t.state, t.errMsg, t.url = cmd, "starting", "", "https://"+host
 	t.mu.Unlock()
-	go t.read(pr, gen, token)
+	go t.read(pr, gen)
 	go func() {
 		err := cmd.Wait()
 		pw.Close()
@@ -267,22 +222,16 @@ func (t *Tunnel) Start() error {
 	return nil
 }
 
-// read follows cloudflared's log: the quick link, or a registered connection in token mode.
-// Lines are never logged as they are: they could carry account details.
-func (t *Tunnel) read(r io.Reader, gen int, token bool) {
+// read follows cloudflared's log until a connection is registered. Lines are never logged as they
+// are: they could carry account details.
+func (t *Tunnel) read(r io.Reader, gen int) {
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		line := sc.Text()
 		t.mu.Lock()
-		if t.gen == gen && t.state == "starting" {
-			if token {
-				if strings.Contains(line, "Registered tunnel connection") {
-					t.state = "on"
-				}
-			} else if u := parseTunnelURL(line); u != "" {
-				t.url, t.state = u, "on"
-				log.Printf("website: public chat link %s", u)
-			}
+		if t.gen == gen && t.state == "starting" && strings.Contains(line, "Registered tunnel connection") {
+			t.state = "on"
+			log.Printf("website: public chat link %s", t.url)
 		}
 		t.mu.Unlock()
 	}

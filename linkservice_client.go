@@ -78,6 +78,7 @@ func (e *LinkError) Error() string {
 }
 
 type LinkService interface {
+	Up(ctx context.Context) bool
 	LoginURL(state, challenge, returnURL string) string
 	Exchange(ctx context.Context, code, verifier string) (string, error)
 	Revoke(ctx context.Context, appKey string) error
@@ -132,6 +133,19 @@ func (h *httpLinkService) call(ctx context.Context, method, path, key string, in
 		return json.Unmarshal(raw, out)
 	}
 	return nil
+}
+
+func (h *httpLinkService) Up(ctx context.Context) bool {
+	req, err := http.NewRequestWithContext(ctx, "GET", h.API+"/up", nil)
+	if err != nil {
+		return false
+	}
+	res, err := h.HC.Do(req)
+	if err != nil {
+		return false
+	}
+	res.Body.Close()
+	return res.StatusCode == http.StatusOK
 }
 
 func (h *httpLinkService) LoginURL(state, challenge, ret string) string {
@@ -311,7 +325,6 @@ func ClaimLink(ctx context.Context, s *Store, ls LinkService, name string) (stri
 	s.Set(setLinkToken, c.TunnelToken)
 	s.Set(setLinkTokenAt, time.Now().UTC().Format(time.RFC3339))
 	s.Set(setLinkStatus, "")
-	s.Set(setWebMode, "link")
 	return c.Hostname, nil
 }
 
@@ -343,9 +356,6 @@ func ReleaseLink(ctx context.Context, s *Store, ls LinkService) error {
 	}
 	for _, k := range []string{setLinkName, setLinkHost, setLinkToken, setLinkTokenAt, setLinkStatus, setLinkBeatDate} {
 		s.Set(k, "")
-	}
-	if s.Get(setWebMode) == "link" {
-		s.Set(setWebMode, "")
 	}
 	return err
 }

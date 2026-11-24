@@ -121,8 +121,8 @@ func hashToken(tok string) string {
 // AddPubUser makes a new web customer for a new browser token and its customer row.
 func (s *Store) AddPubUser(name, phone, email string) (PubUser, string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || utf8.RuneCountInString(name) > pubMaxName || strings.ContainsAny(name, "\r\n\t<>") {
-		return PubUser{}, "", errors.New("type your name (up to 60 letters)")
+	if utf8.RuneCountInString(name) > pubMaxName || strings.ContainsAny(name, "\r\n\t<>") {
+		return PubUser{}, "", errors.New("your name can be up to 60 letters")
 	}
 	if strings.TrimSpace(phone) == "" && strings.TrimSpace(email) == "" {
 		return PubUser{}, "", errors.New("type your phone number or your email")
@@ -138,6 +138,12 @@ func (s *Store) AddPubUser(name, phone, email string) (PubUser, string, error) {
 		var ok bool
 		if em, ok = cleanEmail(email); !ok {
 			return PubUser{}, "", errors.New("that email does not look right")
+		}
+	}
+	if name == "" { // the name is optional: the owner then sees the number or email
+		name = ph
+		if name == "" {
+			name = em
 		}
 	}
 	b := make([]byte, 32)

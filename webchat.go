@@ -41,22 +41,28 @@ type WebUser struct {
 	Username, DisplayName, Created string
 }
 
-func validWebUsername(u string) bool {
-	if u == "" || len(u) > 40 {
-		return false
-	}
-	for _, r := range u {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.') {
-			return false
+// loginID normalises a login: an email (lower case) or a phone number (digits, optional +). ok is
+// false for anything else; older plain usernames still log in, but new logins must be one of the two.
+func loginID(id string) (string, bool) {
+	id = strings.TrimSpace(id)
+	if strings.Contains(id, "@") {
+		if e, ok := cleanEmail(id); ok {
+			return strings.ToLower(e), true
 		}
+		return id, false
 	}
-	return true
+	if p, ok := cleanPhone(id); ok {
+		return p, true
+	}
+	return id, false
 }
 
+const loginIDRule = "use an email address or a phone number (7 to 15 digits, + allowed)"
+
 func (s *Store) AddWebUser(username, password, display string) error {
-	username = strings.TrimSpace(username)
-	if !validWebUsername(username) {
-		return errors.New("username: letters, digits, dot, dash or underscore, up to 40")
+	username, ok := loginID(username)
+	if !ok {
+		return errors.New(loginIDRule)
 	}
 	if password == "" {
 		return errors.New("password is empty")
@@ -71,7 +77,7 @@ func (s *Store) AddWebUser(username, password, display string) error {
 	_, err = s.DB.Exec(`INSERT INTO web_users(username, password_hash, display_name, created_at) VALUES (?,?,?,?)`,
 		username, string(h), strings.TrimSpace(display), now())
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
-		return errors.New("username " + username + " already exists")
+		return errors.New(username + " already exists")
 	}
 	return err
 }
@@ -108,6 +114,9 @@ func (s *Store) DeleteWebUser(idOrName string) error {
 func (s *Store) WebLogin(username, password string) (WebUser, error) {
 	var u WebUser
 	var hash string
+	if id, ok := loginID(username); ok {
+		username = id
+	}
 	err := s.DB.QueryRow(`SELECT id, username, display_name, created_at, password_hash FROM web_users WHERE username=?`,
 		strings.TrimSpace(username)).Scan(&u.ID, &u.Username, &u.DisplayName, &u.Created, &hash)
 	if err == nil {
@@ -122,12 +131,21 @@ func (s *Store) WebLogin(username, password string) (WebUser, error) {
 // WebLoginOrRegister logs a test customer in, or, when the name is new, creates it on the spot with
 // that password: on this computer anyone may make a test login. created says which one happened.
 func (s *Store) WebLoginOrRegister(username, password string) (u WebUser, created bool, err error) {
-	username = strings.TrimSpace(username)
+	return s.WebLoginOrRegisterAs(username, password, "")
+}
+
+// WebLoginOrRegisterAs logs in, or makes a new test login (email or phone) with an optional display name.
+func (s *Store) WebLoginOrRegisterAs(username, password, display string) (u WebUser, created bool, err error) {
+	if id, ok := loginID(username); ok {
+		username = id
+	} else {
+		username = strings.TrimSpace(username) // an older plain username
+	}
 	if _, ok := s.webUser(username); ok {
 		u, err = s.WebLogin(username, password)
 		return u, false, err
 	}
-	if err := s.AddWebUser(username, password, username); err != nil {
+	if err := s.AddWebUser(username, password, display); err != nil {
 		if strings.Contains(err.Error(), "already exists") { // made by a parallel request: log in instead
 			u, err = s.WebLogin(username, password)
 			return u, false, err
@@ -336,21 +354,28 @@ func jsonOut(w http.ResponseWriter, code int, v any) {
 }
 
 func (a *App) webLogin(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Username, Password string }
+	var body struct {
+		Username, Password string
+		DisplayName        string `json:"display_name"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		jsonOut(w, 400, map[string]any{"error": "bad JSON"})
 		return
 	}
-	name := strings.TrimSpace(body.Username)
+	name, _ := loginID(body.Username)
 	if a.webSess.failName.full(name) {
 		jsonOut(w, 429, map[string]any{"error": "Too many wrong passwords. Wait a few minutes and try again."})
 		return
 	}
-	u, created, err := a.S.WebLoginOrRegister(body.Username, body.Password)
+	disp := strings.TrimSpace(body.DisplayName)
+	if len(disp) > 60 {
+		disp = disp[:60]
+	}
+	u, created, err := a.S.WebLoginOrRegisterAs(body.Username, body.Password, disp)
 	if err != nil {
 		if strings.Contains(err.Error(), "wrong username or password") {
 			a.webSess.failName.allow(name)
-			err = errors.New("that name is taken and the password does not match")
+			err = errors.New("that email or phone already has a test login, and the password does not match")
 		}
 		jsonOut(w, 401, map[string]any{"error": err.Error()})
 		return

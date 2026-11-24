@@ -6,7 +6,7 @@ Try your shop as a customer before anyone else does: in the browser with the web
 
 1. Add a test customer on **Users** (see [Users and blocking](/manual/users/)).
 2. On the same computer, open `http://localhost:2007/webchat`.
-3. Log in with the test customer's username and password.
+3. Log in with the test customer's email or phone and password. New here? Type a new email or phone and a password: that creates the test login.
 
 ![Web chat login](/docs/manual/m-chat-login.png)
 
@@ -42,8 +42,8 @@ The program is not on your PATH, so type its full path in place of `ownshop` bel
 **Chat as a test customer** with the running shop. It prints each reply, stops when the shop has been quiet for 3 seconds, and gives up after 60 seconds:
 
 ```bat
-ownshop say --user priya --password demo123 "do you have honey"
-ownshop say --user priya --password demo123 --location 52.3676,4.9041
+ownshop say --user priya@example.com --password demo123 "do you have honey"
+ownshop say --user priya@example.com --password demo123 --location 52.3676,4.9041
 ```
 
 Add `--url http://localhost:2008` if the shop runs on another port.
@@ -52,12 +52,12 @@ Add `--url http://localhost:2008` if the shop runs on another port.
 
 ```bat
 cd /d "%APPDATA%\ownshop"
-ownshop webuser add priya demo123 --name Priya
+ownshop webuser add priya@example.com demo123 --name Priya
 ownshop webuser list
-ownshop webuser delete priya
+ownshop webuser delete priya@example.com
 ownshop user list
-ownshop user block web:priya
-ownshop user unblock web:priya
+ownshop user block web:priya@example.com
+ownshop user unblock web:priya@example.com
 ```
 
 On a Mac the data folder is `~/Library/Application Support/ownshop`, for example `--db ~/Library/Application\ Support/ownshop/ownshop.db`.
@@ -71,5 +71,5 @@ Remove the test orders and chats with **Clear test data**. See [Start over](/man
 ## If it goes wrong
 
 - **"web chat is served on this computer only"**: open the web chat on the computer the shop runs on, with `localhost` or `127.0.0.1` in the address.
-- **"wrong username or password"**: check the test customer on **Users**.
+- **"wrong username or password" or "the password does not match"**: check the test customer on **Users**.
 - **The first answer takes long.** The AI model is loading. See [Troubleshooting](/manual/troubleshooting/).

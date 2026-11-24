@@ -31,9 +31,9 @@ For developers:
   ownshop import  <products.xlsx> [--db ownshop.db]             read a products workbook (sheets Products, FAQ, Delivery slots)
   ownshop eval    [--db ownshop.db]                             score the model on the built-in customer messages
   ownshop sample  [dir]                                        write the example products.xlsx and demo QR
-  ownshop webuser add <user> <password> [--name ..] | list | delete <user>   web chat test customers [--db]
+  ownshop webuser add <email|phone> <password> [--name ..] | list | delete <email|phone> web chat test customers [--db]
   ownshop user    block|unblock <id or phone> | list          block a customer on every channel [--db]
-  ownshop say     --user <u> --password <p> [--url http://127.0.0.1:2007] [--location lat,lng] "text"
+  ownshop say     --user <email|phone> --password <p> [--url http://127.0.0.1:2007] [--location lat,lng] "text"
                                                              chat as a test customer with a running shop
 `
 
@@ -196,7 +196,7 @@ func startShop(dir, dbPath, addr string, ready func()) {
 	}
 	stopTunnel = app.startWebsite(ln.Addr().(*net.TCPAddr).Port)
 	go linkHeartbeat(ctx, s, app.Links, func() {
-		if app.Tunnel != nil && app.Tunnel.Mode() == "link" {
+		if app.Tunnel != nil {
 			app.restartTunnel()
 		}
 	})

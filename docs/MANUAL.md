@@ -138,7 +138,7 @@ When the money arrives, click **Payment received**. OwnShop AI marks the invoice
 
 The **Users** page has two parts.
 
-**Test customers (web chat).** Add a made-up username, password and display name, then click **Add**. That test customer can log in to the web chat on this computer. **Delete** removes them.
+**Test customers (web chat).** Add a made-up email or phone, a password and, if you like, a display name, then click **Add**. That test customer can log in to the web chat on this computer. **Delete** removes them.
 
 ![Users page: test customer priya added](manual/m-users.png)
 
@@ -170,19 +170,19 @@ The program is at `%LOCALAPPDATA%\ownshop\ownshop.exe`. The shop's database is `
 
 ```bat
 cd /d "%APPDATA%\ownshop"
-"%LOCALAPPDATA%\ownshop\ownshop.exe" webuser add priya demo123 --name Priya
+"%LOCALAPPDATA%\ownshop\ownshop.exe" webuser add priya@example.com demo123 --name Priya
 "%LOCALAPPDATA%\ownshop\ownshop.exe" webuser list
-"%LOCALAPPDATA%\ownshop\ownshop.exe" webuser delete priya
+"%LOCALAPPDATA%\ownshop\ownshop.exe" webuser delete priya@example.com
 "%LOCALAPPDATA%\ownshop\ownshop.exe" user list
-"%LOCALAPPDATA%\ownshop\ownshop.exe" user block web:priya
-"%LOCALAPPDATA%\ownshop\ownshop.exe" user unblock web:priya
+"%LOCALAPPDATA%\ownshop\ownshop.exe" user block web:priya@example.com
+"%LOCALAPPDATA%\ownshop\ownshop.exe" user unblock web:priya@example.com
 ```
 
 `ownshop say` chats as a test customer with the running shop and prints each reply. It stops when the shop has been quiet for 3 seconds, and gives up after 60 seconds. It exits with an error if something fails.
 
 ```bat
-"%LOCALAPPDATA%\ownshop\ownshop.exe" say --user priya --password demo123 "do you have honey"
-"%LOCALAPPDATA%\ownshop\ownshop.exe" say --user priya --password demo123 --location 52.3676,4.9041
+"%LOCALAPPDATA%\ownshop\ownshop.exe" say --user priya@example.com --password demo123 "do you have honey"
+"%LOCALAPPDATA%\ownshop\ownshop.exe" say --user priya@example.com --password demo123 --location 52.3676,4.9041
 ```
 
 Add `--url http://127.0.0.1:2007` if the shop runs on another address.
@@ -211,12 +211,9 @@ Find **Start over** at the bottom of each page, or in **Settings**. Both choices
 Customers chat with your shop in any browser through a public link. No website or domain needed; your shop page stays on this computer only. Full guide: [Put your chat on the web](guides/14-web-chat-link.md).
 
 1. Install Cloudflare's free tunnel program once: Windows `winget install --id Cloudflare.cloudflared`, Mac `brew install cloudflared`, or download it from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/. Then click **Check again** on the **Website (your own public chat link)** card in Settings > Chat channels.
-2. Pick a link:
-   - **Free fixed link** `yourname.ownshopai.store` (recommended): **Sign in with Google**, pick a name, **Get my link**. It stays the same after a restart.
-   - **Quick link**: **Make my web chat public**. No sign-up, but the link changes every time OwnShop AI or the computer restarts.
-   - **Advanced, your own domain**: paste a Cloudflare tunnel token and your hostname (the tunnel's public hostname points to `http://127.0.0.1:2008`).
+2. Get your free link `yourname.ownshopai.store`: **Sign in with Google**, pick a name, **Get my link**, then **Make my web chat public**. It stays the same after a restart. While the link service cannot be reached, the card says **Coming soon**.
 3. Share the link or its QR code. The Orders page shows it too. **Stop** takes it offline; if it was on, it starts again by itself when OwnShop AI starts.
-4. Customers type a name and phone number (no password). The browser remembers them. They can add the chat to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS 16.4 or later).
+4. Customers type a phone number or email (name optional, no password). The browser remembers them. They can add the chat to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS 16.4 or later).
 5. The Users page lists web customers with name, phone ("web, phone not verified"), first and last visit, and Block.
 
 Limits: the computer must stay on; Cloudflare carries and can see the traffic; phone numbers are not checked; each browser is its own customer and is never merged with WhatsApp or Telegram.

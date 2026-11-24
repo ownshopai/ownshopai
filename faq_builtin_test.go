@@ -129,3 +129,20 @@ func TestE2EFixes(t *testing.T) {
 	has(t, "bye mid-order", h.say(bad, "bye"), "You're welcome!")
 	has(t, "slot", h.say(call("pick_slot", "slot:"+e("1")), "slot 1"), "Reply YES to confirm order 1042")
 }
+
+// An owner FAQ added later (the FAQ page) is answered in Go even when no built-in question matches,
+// so "can you gift wrap it?" never reaches the model or a hand-off; product questions still search.
+func TestOwnerFAQAnsweredBeforeModel(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.s.DB.Exec(`INSERT INTO faq(question, answer, keywords) VALUES (?,?,?)`,
+		"Do you gift wrap?", "Yes, gift wrap is free on any order. Just ask when you order.", "gift, wrap, present"); err != nil {
+		t.Fatal(err)
+	}
+	want := "Yes, gift wrap is free on any order. Just ask when you order."
+	has(t, "gift wrap", h.say(bad, "can you gift wrap it?"), want)
+	has(t, "present", h.say(bad, "is it possible to wrap it as a present"), want)
+	// Mid-order the question is answered too, and order replies still go to the order flow.
+	h.say(call("add_to_order", "product:"+e("raw honey")+",quantity:1"), "add 1 raw honey")
+	has(t, "gift wrap mid-order", h.say(bad, "can you gift wrap it?"), want)
+	has(t, "slot still works", h.say(call("pick_slot", "slot:"+e("1")), "slot 1"), "Reply YES to confirm order 1042")
+}

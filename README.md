@@ -32,12 +32,10 @@ order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a dom
 - **WhatsApp** (unofficial link through wacli, see the warning below) and **Telegram** (official bot).
 - **Website**: a public chat link customers open in any browser, from a phone or a computer. Your shop page itself
   stays on your computer only; only the customer chat is published, through a Cloudflare tunnel (install Cloudflare's
-  free `cloudflared` once). Three kinds of link, on the **Website** card in Settings:
-  - **Quick link**, no sign-up: a random `*.trycloudflare.com` address from a Cloudflare quick tunnel. It changes every
-    time OwnShop AI or the computer restarts.
-  - **Free fixed link** `yourname.ownshopai.store`: **coming soon**. The link service it needs is not live yet.
-  - **Your own domain**: paste a Cloudflare tunnel token and your hostname; the token is stored locally and never shown again.
-  Customers type a name and a phone number or an email (not verified), and the browser remembers them. The chat is a **PWA**: they can
+  free `cloudflared` once). The link is a free fixed `yourname.ownshopai.store`, on the **Website** card in Settings:
+  sign in with Google, pick a name, and it stays the same after a restart. While the link service cannot be reached,
+  the card says **coming soon**.
+  Customers type a phone number or an email (not verified; name optional), and the browser remembers them. The chat is a **PWA**: they can
   add it to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS
   16.4 or later). Guide: [docs/guides/14-web-chat-link.md](docs/guides/14-web-chat-link.md).
 
@@ -46,7 +44,7 @@ messages the customer (Payment received also sends a receipt image). The **Users
 (WhatsApp, Telegram, web): **Ban** stops replies on every channel, and **Needs support** puts a customer at the top of
 the Chats page (set automatically when the shop hands a message to you). The **FAQ** page adds, edits and deletes the
 questions in your FAQ sheet; the shop answers a new one at once. Test the whole flow without a phone in the built-in
-**web chat** (http://localhost:2007/webchat): type any new name and a password and that test login is made on the spot.
+**web chat** (http://localhost:2007/webchat): type a new email or phone number and a password and that test login is made on the spot.
 
 ## Why it costs nothing
 
@@ -92,7 +90,7 @@ file. Nothing else to install. On the Mac, until the app is notarized, macOS ask
 
 ## Using it
 
-1. **Double-click OwnShop AI.** It opens your browser at http://localhost:2007 (if another program uses that port, it takes the next free one, 2008, 2009, ..., and remembers it). It also starts by itself when you log in, and
+1. **Double-click OwnShop AI.** It opens your browser at http://localhost:2007 (if another program uses that port, it takes the next free one, 2009, 2010, ..., and remembers it; 2008 is kept for the public web chat). It also starts by itself when you log in, and
    puts an *OwnShop AI* shortcut on your desktop that opens the shop page. Double-clicking it again just opens the page.
 2. The page walks you through four steps:
    1. **Shop**: your shop name and currency.

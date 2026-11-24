@@ -217,7 +217,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 
 {{define "website"}}{{with .Web}}<div class="card" id="website">
 <div class="row"><strong>Website (your own public chat link)</strong><span class="pill">{{if eq .State "on"}}on{{else if eq .State "starting"}}starting{{else if eq .State "error"}}stopped{{else}}off{{end}}</span></div>
-<p class="muted">Customers chat with your shop in their browser, from any phone or computer, with a link you share. Free, through Cloudflare's tunnel. Your shop page stays on this computer only.</p>
+<p class="muted">Customers chat with your shop in their browser, from any phone or computer, with a free link of your own: <em>yourname.{{$.LinkDomain}}</em>. It stays the same after a restart. Your shop page stays on this computer only.</p>
 {{if not .Found}}<p><strong>Needs Cloudflare's free tunnel program (cloudflared).</strong> Install it once:</p>
 <ul class="muted"><li>Windows: open Command Prompt and run <code>winget install --id Cloudflare.cloudflared</code></li>
 <li>Mac: run <code>brew install cloudflared</code> in Terminal</li>
@@ -227,36 +227,25 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{if eq .State "on"}}<p>Your public chat link: <a href="{{.URL}}" target="_blank" rel="noopener"><strong>{{.URL}}</strong></a>
 <button type="button" class="ghost" onclick="navigator.clipboard.writeText('{{.URL}}');this.textContent='Copied'">Copy</button></p>
 <p><img src="/channels/website/qr.png" alt="QR code of your public chat link" width="260" height="260"></p>
-<p class="muted">Share the link or let customers scan the code. {{if eq .Mode "quick"}}This quick link changes every time OwnShop AI or this computer restarts: share the new one after a restart, or get a free fixed link below.{{else}}This link stays the same after a restart.{{end}} The link works only while this computer is on and OwnShop AI is running.</p>
+<p class="muted">Share the link or let customers scan the code. The link works only while this computer is on and OwnShop AI is running.</p>
 <form method="post" action="/channels/website/stop?ret={{$.Ret}}"><button class="ghost">Stop</button></form>
 {{else}}{{if .Err}}<p class="warn">{{.Err}}</p>{{end}}{{end}}{{end}}
 
-<h3>1. Free fixed link: <em>yourname.{{$.LinkDomain}}</em> (recommended)</h3>
+<h3>Free link: <em>yourname.{{$.LinkDomain}}</em></h3>
 {{if .LinkHost}}<p>Your free link: <strong>https://{{.LinkHost}}</strong></p>
 {{if $.LinkOff}}<p class="warn">This link is off: {{$.LinkOff}}. Questions: <a href="mailto:io@deemwar.com">io@deemwar.com</a></p>{{end}}
-<div class="row">{{if or (ne .State "on") (ne .Mode "link")}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><input type="hidden" name="mode" value="link"><button>Make my web chat public</button></form>{{end}}
+<div class="row">{{if ne .State "on"}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><button>Make my web chat public</button></form>{{end}}
 {{if $.SignedIn}}<form method="post" action="/channels/website/rotate?ret={{$.Ret}}" onsubmit="return confirm('Make a new tunnel key? The link stays the same.')"><button class="ghost">New tunnel key</button></form>{{end}}
 <form method="post" action="/channels/website/release?ret={{$.Ret}}" onsubmit="return confirm('Release https://{{.LinkHost}}? Someone else can take the name and your QR codes stop working.')"><button class="ghost">Release this link</button></form></div>
+{{else if not $.LinkUp}}<p><strong>Coming soon.</strong> <span class="muted">The free link service is not reachable right now. This card works as soon as it answers.</span></p>
+<p><button disabled>Sign in with Google</button></p>
 {{else if $.SignedIn}}<form class="row" method="post" action="/channels/website/claim?ret={{$.Ret}}"><input type="text" name="name" id="lname" placeholder="myshop" pattern="[a-z0-9-]{3,30}" required autocomplete="off"><span class="muted">.{{$.LinkDomain}}</span><button>Get my link</button></form>
 <p class="muted" id="lavail"></p>
 <script>(function(){const i=document.getElementById('lname'),o=document.getElementById('lavail');let t;i.oninput=()=>{clearTimeout(t);t=setTimeout(async()=>{const v=i.value.trim().toLowerCase();if(!v){o.textContent='';return}const r=await fetch('/channels/website/available?name='+encodeURIComponent(v));const j=await r.json();o.textContent=j.available?('Available: https://'+j.hostname):('Not available'+(j.reason?': '+j.reason:''));},400)};})();</script>
-{{else}}<p class="muted">Sign in once with Google on our link page and pick a name; your link stays the same after restarts. Free.</p>
+{{else}}<p class="muted">Sign in once with Google on our link page and pick a name. Free.</p>
 <form method="post" action="/channels/website/signin?ret={{$.Ret}}"><button>Sign in with Google</button></form>
 <p class="muted">By continuing you accept the <a href="https://ownshopai.store/terms/" target="_blank" rel="noopener">Terms</a> and the <a href="https://ownshopai.store/privacy/" target="_blank" rel="noopener">Privacy policy</a>.</p>{{end}}
 {{if $.SignedIn}}<form method="post" action="/channels/website/signout?ret={{$.Ret}}"><button class="ghost">Sign out of the link service</button></form>{{end}}
-
-<h3>2. Quick link (no sign-up, changes on restart)</h3>
-{{if or (ne .State "on") (ne .Mode "quick")}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><input type="hidden" name="mode" value="quick"><button{{if .LinkHost}} class="ghost"{{end}}>Make my web chat public</button></form>{{else}}<p class="muted">On now.</p>{{end}}
-
-<details{{if eq .Mode "token"}} open{{end}}><summary>3. Advanced: keep the same link on your own domain (needs a free Cloudflare account and your own domain)</summary>
-<p class="muted">In Cloudflare Zero Trust, make a tunnel (Networks &gt; Tunnels), add a public hostname that points to <code>http://127.0.0.1:{{.Port}}</code>, and copy the tunnel token. See the manual guide "Put your chat on the web".</p>
-<form method="post" action="/channels/website/token?ret={{$.Ret}}">
-{{if .TokenSaved}}<p>Token saved.</p>{{end}}
-<label>Tunnel token</label><input type="password" name="token" placeholder="{{if .TokenSaved}}leave empty to keep the saved token{{else}}eyJh...{{end}}" autocomplete="off">
-<label>Public hostname</label><input type="text" name="host" value="{{.Host}}" placeholder="chat.myshop.com" autocomplete="off">
-<div class="row"><button>Save and use my own domain</button>{{if .TokenSaved}}<button class="ghost" name="remove" value="1">Remove</button>{{end}}</div></form>
-{{if and .TokenSaved .Host (or (ne .State "on") (ne .Mode "token"))}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><input type="hidden" name="mode" value="token"><button class="ghost">Make my web chat public on https://{{.Host}}</button></form>{{end}}
-</details>
 <p class="muted">Cloudflare carries the chat traffic between your customers and this computer.</p>
 </div>{{end}}{{end}}
 
@@ -388,9 +377,9 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{if .Support}}<form method="post" action="/users/{{.CustomerID}}/resolved" style="display:inline"><button class="ghost">Resolved</button></form>{{else}}<form method="post" action="/users/{{.CustomerID}}/support" style="display:inline"><button class="ghost">Mark needs support</button></form>{{end}}{{end}}
 {{if .WebUserID}}<form method="post" action="/users/web/{{.WebUserID}}/delete" style="display:inline" onsubmit="return confirm('Delete this test login and its web chat messages?')"><button class="ghost">Delete</button></form>{{end}}</td></tr>
 {{else}}<tr><td colspan="10" class="muted">{{if .Total}}No customer matches.{{else}}No customers yet.{{end}}</td></tr>{{end}}</table></div>
-<form class="card" method="post" action="/users/web"><p><strong>Add a test customer</strong> <span class="muted">(or just log in at <a href="/webchat">/webchat</a> with a new name: that creates one)</span></p>
-<div class="row"><input type="text" name="username" placeholder="username" required autocomplete="off"><input type="password" name="password" placeholder="password" required autocomplete="new-password"><input type="text" name="display_name" placeholder="display name"><button>Add</button></div>
-<p class="muted">For testing only: use made-up names and passwords.</p></form>
+<form class="card" method="post" action="/users/web"><p><strong>Add a test customer</strong> <span class="muted">(or just log in at <a href="/webchat">/webchat</a> with a new email or phone: that creates one)</span></p>
+<div class="row"><input type="text" name="username" placeholder="email or phone" required autocomplete="off"><input type="password" name="password" placeholder="password" required autocomplete="new-password"><input type="text" name="display_name" placeholder="display name (optional)"><button>Add</button></div>
+<p class="muted">For testing only: use made-up emails or numbers and passwords.</p></form>
 {{template "foot" .}}{{end}}
 
 {{define "webchat"}}<!doctype html>
@@ -447,14 +436,15 @@ document.getElementById('logout').onclick = async e => { e.preventDefault(); awa
 poll(); setInterval(poll, 1500);
 </script>
 {{else}}<h1>Web chat</h1>
-<form class="card" id="login" style="max-width:360px"><p class="muted">Chat as a test customer on this computer. New here? Type any name and a password: this creates your test login. Next time use the same name and password.</p>
-<label>Name</label><input type="text" id="u" autocomplete="username" required autofocus>
+<form class="card" id="login" style="max-width:360px"><p class="muted">Chat as a test customer on this computer. New here? Type an email or phone number and a password: this creates your test login. Next time use the same email or phone and password.</p>
+<label>Email or phone</label><input type="text" id="u" autocomplete="username" required autofocus placeholder="test@example.com or +15550001111">
 <label>Password</label><input type="password" id="p" autocomplete="current-password" required>
+<label>Display name (optional, for a new login)</label><input type="text" id="dn" maxlength="60" autocomplete="name">
 <p><button>Log in</button></p><p class="muted" id="err"></p></form>
 <script>
 document.getElementById('login').onsubmit = async e => {
   e.preventDefault();
-  const r = await fetch('/webchat/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:document.getElementById('u').value, password:document.getElementById('p').value})});
+  const r = await fetch('/webchat/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:document.getElementById('u').value, password:document.getElementById('p').value, display_name:document.getElementById('dn').value})});
   if (r.ok) location.reload(); else document.getElementById('err').textContent = (await r.json()).error;
 };
 </script>{{end}}
@@ -484,10 +474,10 @@ document.getElementById('login').onsubmit = async e => {
 <body><header><strong>{{if .Shop}}{{.Shop}}{{else}}Shop chat{{end}}</strong><span class="muted" id="who"></span> <a href="#" id="notme" class="hide">Not you? Start again</a></header><main>
 <div id="offline">You are offline. Messages will load again when you are back online.</div>
 <form class="card hide" id="signin" style="max-width:380px;margin:0 auto">
-<h1>Chat with us</h1><p class="muted">Type your name and your phone number or email (one is enough) so the shop knows who you are. No password.</p>
-<label>Your name</label><input type="text" id="name" autocomplete="name" maxlength="60" required>
+<h1>Chat with us</h1><p class="muted">Type your phone number or email (one is enough) so the shop knows who you are. No password.</p>
 <label>Phone number</label><input type="tel" id="phone" autocomplete="tel" placeholder="+1 555 123 4567">
 <label>or email</label><input type="email" id="email" autocomplete="email" maxlength="254" placeholder="you@example.com">
+<label>Your name (optional)</label><input type="text" id="name" autocomplete="name" maxlength="60">
 <p><button>Start chatting</button></p><p class="muted" id="serr"></p>
 <p class="muted">The shop sees your name, number and email with your messages. This browser remembers you, so next time you go straight to the chat.</p>
 <p class="muted">Your messages go to {{if .Shop}}{{.Shop}}{{else}}this shop{{end}}. Privacy: {{if .PrivacyNote}}{{.PrivacyNote}} · {{end}}<a href="https://ownshopai.store/privacy/" target="_blank" rel="noopener">OwnShop AI privacy</a></p></form>

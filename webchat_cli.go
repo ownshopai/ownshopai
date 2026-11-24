@@ -28,14 +28,14 @@ func parseAny(fs *flag.FlagSet, args []string) []string {
 	}
 }
 
-// webuserCmd: ownshop webuser add <username> <password> [--name "Display"] | list | delete <username>
+// webuserCmd: ownshop webuser add <email or phone> <password> [--name "Display"] | list | delete <email or phone>
 func webuserCmd(args []string) error {
 	fs := flag.NewFlagSet("webuser", flag.ExitOnError)
 	dbPath := fs.String("db", "ownshop.db", "SQLite database file")
 	name := fs.String("name", "", "display name (add)")
 	pos := parseAny(fs, args)
 	if len(pos) == 0 {
-		return errors.New("usage: ownshop webuser add <username> <password> [--name ..] | list | delete <username> [--db ownshop.db]")
+		return errors.New("usage: ownshop webuser add <email or phone> <password> [--name ..] | list | delete <email or phone> [--db ownshop.db]")
 	}
 	s, err := OpenStore(*dbPath)
 	if err != nil {
@@ -61,7 +61,7 @@ func webuserCmd(args []string) error {
 		}
 		fmt.Println("deleted", pos[1])
 	default:
-		return errors.New("usage: ownshop webuser add <username> <password> [--name ..] | list | delete <username>")
+		return errors.New("usage: ownshop webuser add <email or phone> <password> [--name ..] | list | delete <email or phone>")
 	}
 	return nil
 }
@@ -103,7 +103,7 @@ func userCmd(args []string) error {
 // location) and prints the shop's replies until it goes quiet.
 func sayCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("say", flag.ExitOnError)
-	user := fs.String("user", "", "web chat username")
+	user := fs.String("user", "", "web chat login: email or phone")
 	pw := fs.String("password", "", "web chat password")
 	base := fs.String("url", "http://127.0.0.1:2007", "OwnShop AI address")
 	loc := fs.String("location", "", "send a location instead of text: lat,lng")
@@ -111,7 +111,7 @@ func sayCmd(args []string, out io.Writer) error {
 	maxWait := fs.Duration("timeout", 60*time.Second, "give up after this long")
 	text := strings.Join(parseAny(fs, args), " ")
 	if *user == "" || (text == "" && *loc == "") {
-		return errors.New(`usage: ownshop say --user <name> --password <pw> [--url http://127.0.0.1:2007] [--location lat,lng] "text"`)
+		return errors.New(`usage: ownshop say --user <email or phone> --password <pw> [--url http://127.0.0.1:2007] [--location lat,lng] "text"`)
 	}
 	body := map[string]any{"text": text}
 	if *loc != "" {
