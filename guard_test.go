@@ -52,3 +52,29 @@ func TestGuardRepliesOnlyCapsAndPaces(t *testing.T) {
 		t.Fatalf("next day: %v", err)
 	}
 }
+
+// The local web test chat is never capped; WhatsApp and the public link still are.
+func TestGuardWebTestChatNotCapped(t *testing.T) {
+	s, err := OpenStore(filepath.Join(t.TempDir(), "g.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := &countSender{}
+	g := NewGuard(inner, s)
+	g.Sleep = func(time.Duration) {}
+	s.Set("daily_send_cap", "1")
+	web := Customer{Channel: webChannel, Phone: "web:a@example.com", JID: "a@example.com"}
+	for i := 0; i < 3; i++ {
+		if err := g.Send(web, Out{Text: "hi"}); err != nil {
+			t.Fatalf("web test reply %d: %v", i, err)
+		}
+	}
+	pub := Customer{Channel: pubChannel, Phone: "pub:1", JID: "1"}
+	g.Send(pub, Out{Text: "one"})
+	if err := g.Send(pub, Out{Text: "two"}); err == nil {
+		t.Fatal("public web chat not capped")
+	}
+	if inner.n != 4 {
+		t.Fatalf("sent %d, want 4", inner.n)
+	}
+}

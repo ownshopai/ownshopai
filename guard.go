@@ -58,6 +58,12 @@ func (g *Guard) Send(c Customer, o Out) error {
 	if c.JID == "" {
 		return fmt.Errorf("%s never wrote to the shop; OwnShop AI only replies", c.Phone)
 	}
+	if c.Channel == webChannel {
+		// Test logins on this computer (/webchat): the cap guards a WhatsApp number against bans and
+		// the public link against abuse; here it only stopped the owner's own testing, silently,
+		// after 200 replies a day.
+		return g.Inner.Send(c, o)
+	}
 	g.mu.Lock()
 	key, n := g.sentToday(c)
 	if n >= g.DailyCap() {
@@ -73,8 +79,8 @@ func (g *Guard) Send(c Customer, o Out) error {
 	}
 	g.last[chat] = g.Now().Add(max(wait, 0) + typingDelay(o.Text))
 	g.mu.Unlock()
-	if c.Channel == webChannel || c.Channel == pubChannel {
-		return g.Inner.Send(c, o) // web chats need no human pacing (the cap above still counts)
+	if c.Channel == pubChannel {
+		return g.Inner.Send(c, o) // the public web chat needs no human pacing (the cap above still counts)
 	}
 
 	if wait > 0 {
