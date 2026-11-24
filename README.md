@@ -30,11 +30,11 @@ order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a dom
 ## Chat channels
 
 - **WhatsApp** (unofficial link through wacli, see the warning below) and **Telegram** (official bot).
-- **Website**: a public chat link customers open in any browser, from a phone or a computer. Your shop page itself
+- **Website (coming soon)**: a public chat link customers open in any browser, from a phone or a computer. The free
+  link service is not open yet, so the Website card in Settings says **Coming soon** for now. Your shop page itself
   stays on your computer only; only the customer chat is published, through a Cloudflare tunnel (install Cloudflare's
   free `cloudflared` once). The link is a free fixed `yourname.ownshopai.store`, on the **Website** card in Settings:
-  sign in with Google, pick a name, and it stays the same after a restart. While the link service cannot be reached,
-  the card says **coming soon**.
+  sign in with Google, pick a name, and it stays the same after a restart.
   Customers type a phone number or an email (not verified; name optional), and the browser remembers them. The chat is a **PWA**: they can
   add it to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS
   16.4 or later). Guide: [docs/guides/14-web-chat-link.md](docs/guides/14-web-chat-link.md).
