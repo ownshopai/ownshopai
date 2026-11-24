@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	llmkit "github.com/muthuishere/toolnexus/golang"
 )
@@ -192,6 +193,34 @@ func TestWarmHasNoSideEffects(t *testing.T) {
 			t.Fatalf("%s = %d after warm-up, want 0", q, n)
 		}
 	}
+}
+
+// A slow warm-up (model still loading) must not hold up replies that need no model.
+func TestWarmDoesNotBlockReplies(t *testing.T) {
+	s, _ := setup(t)
+	release := make(chan struct{})
+	b := &Bot{S: s, M: blockModel{release}}
+	go b.Warm(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	done := make(chan []Out, 1)
+	go func() { done <- b.Handle(context.Background(), Inbound{Phone: "+15550001", Name: "A", Text: "hi"}) }()
+	select {
+	case outs := <-done:
+		if len(outs) == 0 {
+			t.Fatal("no reply to hi")
+		}
+	case <-time.After(3 * time.Second):
+		close(release)
+		t.Fatal("hi waited for the model warm-up")
+	}
+	close(release)
+}
+
+type blockModel struct{ release chan struct{} }
+
+func (m blockModel) Run(ctx context.Context, _ string, tk *llmkit.Toolkit) (llmkit.RunResult, error) {
+	<-m.release
+	return llmkit.RunResult{}, nil
 }
 
 type countModel struct {

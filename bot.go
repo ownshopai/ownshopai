@@ -347,13 +347,21 @@ func (b *Bot) awaitingSlotNumber(c Customer, text string) (string, bool) {
 }
 
 // Warm sends one throwaway message through the model at start, so the first customer does not
-// wait for the cold model (about 40 s on a small PC). Tool calls do nothing: no turn is open.
+// wait for the cold model (about 40 s on a small PC). It does not take b.mu: on a slow PC loading
+// the model takes minutes, and holding the lock kept even "hi" and FAQ answers (no model needed)
+// waiting all that time. Its own toolkit has the same tools with handlers that do nothing, so a
+// tool call can never touch a real customer's turn running at the same moment.
 func (b *Bot) Warm(ctx context.Context) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	tk, err := b.Toolkit()
-	if err != nil || b.M == nil {
+	if b.M == nil {
 		return
+	}
+	tk, err := llmkit.CreateToolkit(ctx, llmkit.Options{Builtins: false})
+	if err != nil {
+		return
+	}
+	for _, t := range tools {
+		tk.Register(llmkit.NativeTool(t.Name, t.Desc, toolSchema(t),
+			func(ctx context.Context, args map[string]any) (string, error) { return "", nil }))
 	}
 	start := time.Now()
 	if _, err := b.M.Run(ctx, "hello", tk); err != nil {
