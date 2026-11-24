@@ -171,6 +171,7 @@ func startShop(dir, dbPath, addr string, ready func()) {
 	g := NewGuard(hub, s)
 	g.Typing = hub.Typing
 	bot := &Bot{S: s, M: m, Send: g, Debug: func(m string) { log.Println(m) }, Dir: dir}
+	go bot.Warm(context.Background())
 	hub.OnMessage = func(in Inbound) { receive(s, bot, in) }
 	sf := NewShopFile(s, filepath.Join(dir, "products.xlsx"))
 	if err := sf.Load(); err != nil && sf.Status().Exists {

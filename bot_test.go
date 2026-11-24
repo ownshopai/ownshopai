@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	llmkit "github.com/muthuishere/toolnexus/golang"
 )
 
 func setup(t *testing.T) (*Store, string) {
@@ -145,4 +147,59 @@ func TestIsYesOtherLanguages(t *testing.T) {
 			t.Errorf("%q should be a yes", y)
 		}
 	}
+}
+
+// A bare "1" after the numbered delivery slots picks that slot in Go. The model made no tool
+// call for it on the Windows test PC, and the customer got "The shop will reply shortly".
+func TestBareSlotNumberPicksSlot(t *testing.T) {
+	s, _ := setup(t)
+	m := fakeModel{"add 2 raw honey": "call:add_to_order{product:<escape>raw honey<escape>,quantity:2}"}
+	b := &Bot{S: s, M: m} // any other message: the fake model makes no tool call
+	say := func(text string) string {
+		var parts []string
+		for _, o := range b.Handle(context.Background(), Inbound{Channel: "fake", Account: "shop1", SenderID: "chat-9", Phone: "+31600000009", Name: "Test Buyer", Text: text}) {
+			parts = append(parts, o.Text)
+		}
+		return strings.Join(parts, "\n")
+	}
+	if got := say("1"); strings.Contains(got, "Reply YES") {
+		t.Fatalf("a number with no cart must not pick a slot: %q", got)
+	}
+	if got := say("add 2 raw honey"); !strings.Contains(got, "Pick a delivery slot") {
+		t.Fatalf("cart reply: %q", got)
+	}
+	if got := say("9"); strings.Contains(got, "Reply YES") {
+		t.Fatalf("an out-of-range number must not pick a slot: %q", got)
+	}
+	if got := say("1"); !strings.Contains(got, "Reply YES to confirm order") {
+		t.Fatalf("bare 1 after the slot list: %q", got)
+	}
+}
+
+// Warm runs the model once at start and must leave no trace: no reply, no order, no chat log.
+func TestWarmHasNoSideEffects(t *testing.T) {
+	s, _ := setup(t)
+	calls := 0
+	b := &Bot{S: s, M: countModel{&calls, "call:add_to_order{product:<escape>raw honey<escape>,quantity:2}"}}
+	b.Warm(context.Background())
+	if calls != 1 {
+		t.Fatalf("warm-up ran the model %d times, want 1", calls)
+	}
+	var n int
+	for _, q := range []string{`SELECT COUNT(*) FROM order_items`, `SELECT COUNT(*) FROM chat_log`, `SELECT COUNT(*) FROM handoffs`} {
+		s.DB.QueryRow(q).Scan(&n)
+		if n != 0 {
+			t.Fatalf("%s = %d after warm-up, want 0", q, n)
+		}
+	}
+}
+
+type countModel struct {
+	n   *int
+	out string
+}
+
+func (c countModel) Run(ctx context.Context, _ string, tk *llmkit.Toolkit) (llmkit.RunResult, error) {
+	*c.n++
+	return runCanned(ctx, c.out, tk)
 }

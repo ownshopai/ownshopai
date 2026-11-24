@@ -260,6 +260,11 @@ func (b *Bot) Handle(ctx context.Context, in Inbound) []Out {
 		outs = b.address(c, text, in.HasLocation())
 	} else if o := b.awaitingTime(c); o != nil && b.isPick(c, o, text, &outs) {
 		tool, calls = "pick_slot", "go:pick_time"
+	} else if n, ok := b.awaitingSlotNumber(c, text); ok {
+		// "1" right after the numbered delivery slots is that slot; the small model often
+		// makes no tool call for a bare number, and the customer got a hand-off.
+		tool, calls = "pick_slot", "go:pick_slot"
+		outs = b.pickSlot(c, n, text)
 	} else if isYes(text) && b.awaitingYes(c) {
 		// The reply asked for exactly "YES": a bare yes with a cart ready to confirm is answered
 		// in Go. The small model often routes a lone YES elsewhere.
@@ -323,6 +328,39 @@ func (b *Bot) ask(ctx context.Context, c Customer, text string) (tool, calls str
 func (b *Bot) awaitingYes(c Customer) bool {
 	o, _ := b.S.Cart(c.ID)
 	return o != nil && o.Ready()
+}
+
+// awaitingSlotNumber: a products-only cart has no delivery slot yet and the message is just
+// a slot number from the list ("1", "slot 2", "#3") that is in range.
+func (b *Bot) awaitingSlotNumber(c Customer, text string) (string, bool) {
+	m := pickNumRe.FindStringSubmatch(strings.ToLower(strings.TrimSpace(text)))
+	if m == nil {
+		return "", false
+	}
+	o, _ := b.S.Cart(c.ID)
+	if o == nil || len(o.Items) == 0 || o.HasService() || o.SlotID.Valid {
+		return "", false
+	}
+	slots, _ := b.S.Slots()
+	i, _ := strconv.Atoi(m[1])
+	return m[1], i >= 1 && i <= len(slots)
+}
+
+// Warm sends one throwaway message through the model at start, so the first customer does not
+// wait for the cold model (about 40 s on a small PC). Tool calls do nothing: no turn is open.
+func (b *Bot) Warm(ctx context.Context) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	tk, err := b.Toolkit()
+	if err != nil || b.M == nil {
+		return
+	}
+	start := time.Now()
+	if _, err := b.M.Run(ctx, "hello", tk); err != nil {
+		b.debug("model warm-up: %v", err)
+		return
+	}
+	b.debug("model warm-up done in %s", time.Since(start).Round(time.Second))
 }
 
 // awaitingTime: the cart holds a service and no time is booked yet.

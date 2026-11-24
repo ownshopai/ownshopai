@@ -410,7 +410,7 @@ const box = document.getElementById('msgs'), err = document.getElementById('err'
 function post(u, b) { return fetch(u, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(b)}); }
 function add(m) {
   const d = document.createElement('div'); d.className = 'b ' + m.direction;
-  if (m.image) { const i = document.createElement('img'); i.src = m.image; i.alt = 'image'; d.appendChild(i); }
+  if (m.image) { const i = document.createElement('img'); i.src = m.image; i.alt = 'image'; i.onload = () => { box.scrollTop = box.scrollHeight; }; d.appendChild(i); }
   if (m.text) d.appendChild(document.createTextNode(m.text));
   const s = document.createElement('small'); s.textContent = m.ts; d.appendChild(s);
   box.appendChild(d); box.scrollTop = box.scrollHeight;
@@ -497,7 +497,7 @@ function post(u, b) { return fetch(u, {method:'POST', headers:{'Content-Type':'a
 function show(id, on) { $(id).classList.toggle('hide', !on); }
 function add(m) {
   const d = document.createElement('div'); d.className = 'b ' + m.direction;
-  if (m.image) { const i = document.createElement('img'); i.src = m.image; i.alt = 'image'; d.appendChild(i); }
+  if (m.image) { const i = document.createElement('img'); i.src = m.image; i.alt = 'image'; i.onload = () => { $('msgs').scrollTop = $('msgs').scrollHeight; }; d.appendChild(i); }
   if (m.text) d.appendChild(document.createTextNode(m.text));
   const s = document.createElement('small'); s.textContent = m.ts; d.appendChild(s);
   $('msgs').appendChild(d); $('msgs').scrollTop = $('msgs').scrollHeight;
