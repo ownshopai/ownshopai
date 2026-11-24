@@ -22,18 +22,19 @@ import (
 const ownFolder = "your OwnShop folder"
 
 // openInFileManager opens dir in the OS file manager. A variable so tests can stub it.
-var openInFileManager = func(dir string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
+var openInFileManager = func(dir string) error { return fileManagerCmd(runtime.GOOS, dir).Start() }
+
+// fileManagerCmd is the file manager command for an OS. It is a window the owner must see:
+// no hideConsole here (on Windows its HideWindow starts explorer.exe with a hidden window, so
+// Open folder did nothing visible and left a hidden explorer process behind).
+func fileManagerCmd(goos, dir string) *exec.Cmd {
+	switch goos {
 	case "windows":
-		cmd = exec.Command("explorer.exe", dir)
+		return exec.Command("explorer.exe", dir)
 	case "darwin":
-		cmd = exec.Command("open", dir)
-	default:
-		cmd = exec.Command("xdg-open", dir)
+		return exec.Command("open", dir)
 	}
-	hideConsole(cmd)
-	return cmd.Start()
+	return exec.Command("xdg-open", dir)
 }
 
 // folderFor maps the "which" form value to a folder inside the data folder.

@@ -121,3 +121,16 @@ func TestOpenFolderEndpoint(t *testing.T) {
 		t.Fatalf("opened from the public listener: %v", opened)
 	}
 }
+
+// Open folder must show a window: the command may not carry hideConsole's HideWindow.
+func TestFileManagerCmdIsVisible(t *testing.T) {
+	for _, goos := range []string{"windows", "darwin", "linux"} {
+		c := fileManagerCmd(goos, "dir")
+		if c.SysProcAttr != nil {
+			t.Fatalf("%s: file manager started with SysProcAttr %+v (hidden window)", goos, c.SysProcAttr)
+		}
+		if c.Args[len(c.Args)-1] != "dir" {
+			t.Fatalf("%s: args %v", goos, c.Args)
+		}
+	}
+}
