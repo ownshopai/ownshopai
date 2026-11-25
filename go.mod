@@ -4,6 +4,8 @@ go 1.26.0
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/coder/websocket v1.8.14
+	github.com/hashicorp/yamux v0.1.2
 	github.com/muthuishere/toolnexus/golang v0.30.1-0.20261120153216-d7b612301b70
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/xuri/excelize/v2 v2.10.1
