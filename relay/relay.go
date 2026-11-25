@@ -23,8 +23,9 @@
 //
 // Dead connections (laptop sleep, Android doze, NAT timeouts) are detected by yamux keepalive
 // (Config.PingInterval, default 30 s) and a write timeout of 10 s; then the client redials with
-// backoff from 1 s doubling to Config.MaxBackoff (default 60 s) with jitter. A successful
-// connection resets the backoff. There is no resumable session in v1: the link service holds a
+// backoff from 1 s doubling to Config.MaxBackoff (default 60 s) with jitter. A connection that
+// stayed up at least 10 s resets the backoff and is redialed at once when it ends; a shorter one
+// counts as a failure (so two shops fighting over one name, each replacing the other, back off). There is no resumable session in v1: the link service holds a
 // visitor request up to 15 s waiting for the shop to come back, so a quick redial loses nothing.
 //
 // OnState is called on its own goroutine, in order, never blocking the connection. Kick and Stop
@@ -47,6 +48,9 @@ import (
 	"github.com/coder/websocket"
 	"github.com/hashicorp/yamux"
 )
+
+// stableAfter is how long a connection must live to count as good.
+const stableAfter = 10 * time.Second
 
 // Subprotocol is the websocket subprotocol of the relay contract.
 const Subprotocol = "ownshop-relay.v1"
@@ -187,10 +191,10 @@ func (c *Client) Stop(ctx context.Context) {
 	if !started {
 		return
 	}
+	c.srv.Shutdown(ctx) // stops new streams, waits for the requests in flight (until ctx's deadline)
 	if cancel != nil {
 		cancel()
 	}
-	c.srv.Shutdown(ctx) // waits for active requests, closes the session listener
 	select {
 	case <-c.done:
 	case <-ctx.Done():
@@ -199,10 +203,12 @@ func (c *Client) Stop(ctx context.Context) {
 
 func (c *Client) loop(ctx context.Context) {
 	defer close(c.done)
-	backoff := time.Second
+	first := min(time.Second, c.cfg.MaxBackoff)
+	backoff := first
 	for {
 		c.set(func(s *Status) { s.State = Connecting })
-		up, err := c.runOnce(ctx)
+		up, lived, err := c.runOnce(ctx)
+		good := up && lived >= stableAfter
 		if ctx.Err() != nil {
 			c.set(func(s *Status) { s.State = Stopped; s.LastErr = "" })
 			return
@@ -212,8 +218,8 @@ func (c *Client) loop(ctx context.Context) {
 			c.set(func(s *Status) { s.State = Stopped; s.LastErr = err.Error(); s.Attempt++ })
 			return
 		}
-		if up {
-			backoff = time.Second
+		if good {
+			backoff = first
 		}
 		msg := "connection closed"
 		if err != nil {
@@ -222,14 +228,14 @@ func (c *Client) loop(ctx context.Context) {
 		c.set(func(s *Status) {
 			s.State = Offline
 			s.LastErr = msg
-			if up {
+			if good {
 				s.Attempt = 0
 			} else {
 				s.Attempt++
 			}
 		})
 		wait := backoff/2 + rand.N(backoff/2+1) // jitter: 50-100% of the step
-		if up {
+		if good {
 			wait = 0 // first redial after a good connection is immediate
 		}
 		t := time.NewTimer(wait)
@@ -240,9 +246,9 @@ func (c *Client) loop(ctx context.Context) {
 			return
 		case <-c.kick:
 			t.Stop()
-			backoff = time.Second
+			backoff = first
 		case <-t.C:
-			if !up {
+			if !good {
 				backoff *= 2
 				if backoff > c.cfg.MaxBackoff {
 					backoff = c.cfg.MaxBackoff
@@ -252,8 +258,16 @@ func (c *Client) loop(ctx context.Context) {
 	}
 }
 
-// runOnce dials, serves until the session ends, and says whether it got online.
-func (c *Client) runOnce(ctx context.Context) (bool, error) {
+// runOnce dials, serves until the session ends, and says whether it got online and for how long.
+func (c *Client) runOnce(ctx context.Context) (bool, time.Duration, error) {
+	up, start, err := c.dialServe(ctx)
+	if !up {
+		return false, 0, err
+	}
+	return true, time.Since(start), err
+}
+
+func (c *Client) dialServe(ctx context.Context) (bool, time.Time, error) {
 	// drain a stale kick so it does not cut the new connection
 	select {
 	case <-c.kick:
@@ -261,7 +275,7 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 	}
 	u, err := url.Parse(c.cfg.URL)
 	if err != nil {
-		return false, &RefusedError{Body: "bad relay URL"}
+		return false, time.Time{}, &RefusedError{Body: "bad relay URL"}
 	}
 	q := u.Query()
 	q.Set("name", c.cfg.Name)
@@ -271,7 +285,7 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 		key = c.cfg.AppKey()
 	}
 	if key == "" {
-		return false, &RefusedError{Status: 401, Body: "not signed in"}
+		return false, time.Time{}, &RefusedError{Status: 401, Body: "not signed in"}
 	}
 	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	ws, res, err := websocket.Dial(dctx, u.String(), &websocket.DialOptions{
@@ -288,10 +302,10 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 				if res.Body != nil {
 					b, _ = io.ReadAll(io.LimitReader(res.Body, 512))
 				}
-				return false, &RefusedError{Status: res.StatusCode, Body: string(b)}
+				return false, time.Time{}, &RefusedError{Status: res.StatusCode, Body: string(b)}
 			}
 		}
-		return false, err
+		return false, time.Time{}, err
 	}
 	ws.SetReadLimit(-1) // the byte stream is chunked by yamux; frames can be any size
 	nc := websocket.NetConn(context.Background(), ws, websocket.MessageBinary)
@@ -304,7 +318,7 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 	sess, err := yamux.Server(nc, ycfg)
 	if err != nil {
 		nc.Close()
-		return false, err
+		return false, time.Time{}, err
 	}
 	c.mu.Lock()
 	c.conn = sess
@@ -334,8 +348,13 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 		case <-sess.CloseChan():
 		}
 	}()
-	err = c.srv.Serve(sessListener{sess})
+	err = c.srv.Serve(newSessListener(sess))
 	close(stopPing)
+	if errors.Is(err, http.ErrServerClosed) {
+		// Stop: Shutdown is draining the requests in flight on this session; Stop cancels ctx when
+		// they are done (or its deadline passed), then the session closes.
+		<-ctx.Done()
+	}
 	sess.Close()
 	c.mu.Lock()
 	c.conn = nil
@@ -343,17 +362,52 @@ func (c *Client) runOnce(ctx context.Context) (bool, error) {
 	if errors.Is(err, http.ErrServerClosed) || errors.Is(err, net.ErrClosed) || errors.Is(err, yamux.ErrSessionShutdown) {
 		err = nil
 	}
-	return true, err
+	return true, now, err
 }
 
-// sessListener makes Serve return a plain error when the session ends (http.Server retries
-// temporary Accept errors forever otherwise) without closing the server.
-type sessListener struct{ *yamux.Session }
+// sessListener serves a yamux session as a net.Listener. Close (from http.Server.Shutdown) only
+// stops new streams (yamux GoAway) and ends Accept; the session and its streams in flight live on
+// until runOnce closes it, so Shutdown can drain them. Accept errors are permanent (http.Server
+// retries temporary ones forever).
+type sessListener struct {
+	sess *yamux.Session
+	done chan struct{}
+	once sync.Once
+}
 
-func (l sessListener) Accept() (net.Conn, error) {
-	c, err := l.Session.Accept()
-	if err != nil {
-		return nil, yamux.ErrSessionShutdown
+func newSessListener(s *yamux.Session) *sessListener {
+	return &sessListener{sess: s, done: make(chan struct{})}
+}
+
+func (l *sessListener) Accept() (net.Conn, error) {
+	type res struct {
+		c   net.Conn
+		err error
 	}
-	return c, nil
+	ch := make(chan res, 1)
+	go func() {
+		c, err := l.sess.Accept()
+		ch <- res{c, err}
+	}()
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			return nil, yamux.ErrSessionShutdown
+		}
+		return r.c, nil
+	case <-l.done:
+		go func() { // a stream accepted after Close is refused
+			if r := <-ch; r.c != nil {
+				r.c.Close()
+			}
+		}()
+		return nil, net.ErrClosed
+	}
 }
+
+func (l *sessListener) Close() error {
+	l.once.Do(func() { l.sess.GoAway(); close(l.done) })
+	return nil
+}
+
+func (l *sessListener) Addr() net.Addr { return l.sess.Addr() }

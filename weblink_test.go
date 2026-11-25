@@ -147,6 +147,12 @@ func TestRelayRefusedShowsOwner(t *testing.T) {
 	if w := linkErrWords(a.Link.View().Err); !strings.Contains(w, "does not know this link") {
 		t.Fatalf("owner words %q", w)
 	}
+	// the owner fixes it (signs in again, the service re-enables the link) and presses the button
+	srv.SetStatus(0)
+	if err := a.Link.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitLink(t, a, "on")
 }
 
 func TestRelayStatusEndpoint(t *testing.T) {

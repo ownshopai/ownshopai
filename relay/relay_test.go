@@ -2,6 +2,7 @@ package relay_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -110,4 +111,47 @@ func TestRelayKickRedials(t *testing.T) {
 		t.Fatal("kick did not redial")
 	}
 	c.Stop(context.Background())
+}
+
+func TestRelayStopDrainsInFlight(t *testing.T) {
+	srv := relaytest.New("k", "rosa")
+	defer srv.Close()
+	h := http.NewServeMux()
+	started := make(chan struct{})
+	h.HandleFunc("GET /slow", func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		time.Sleep(500 * time.Millisecond)
+		io.WriteString(w, "done")
+	})
+	c := relay.New(relay.Config{URL: srv.RelayURL(), Name: "rosa", AppKey: func() string { return "k" }, Handler: h})
+	c.Start(context.Background())
+	waitState(t, c, relay.Online)
+	got := make(chan string, 1)
+	go func() {
+		code, body := get(t, srv, "/slow")
+		got <- fmt.Sprint(code, " ", body)
+	}()
+	<-started
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	c.Stop(ctx)
+	if r := <-got; r != "200 done" {
+		t.Fatalf("in-flight request cut by Stop: %q", r)
+	}
+}
+
+// A server that accepts and drops at once (another shop replacing this one) must not get a tight loop.
+func TestRelayShortConnectionsBackOff(t *testing.T) {
+	srv := relaytest.New("k", "rosa")
+	defer srv.Close()
+	srv.DropOnAccept = true
+	h := http.NewServeMux()
+	c := relay.New(relay.Config{URL: srv.RelayURL(), Name: "rosa", AppKey: func() string { return "k" }, Handler: h,
+		MaxBackoff: 400 * time.Millisecond})
+	c.Start(context.Background())
+	time.Sleep(1500 * time.Millisecond)
+	c.Stop(context.Background())
+	if n := srv.Accepts(); n > 8 {
+		t.Fatalf("%d connections in 1.5 s: no backoff", n)
+	}
 }

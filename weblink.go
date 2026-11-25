@@ -83,9 +83,10 @@ func (t *WebLink) Start() error {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.c != nil {
+	if t.c != nil && t.c.Status().State != relay.Stopped {
 		return nil
 	}
+	// a client stopped by a refusal (401/403/404) is single-use: dial again with a new one
 	u := t.RelayURL
 	if u == "" {
 		u = linkRelayURL

@@ -21,6 +21,8 @@ type Server struct {
 	Key    string // the app key it accepts
 	Name   string // the link name it accepts
 	Status int    // when non-zero, refuse every dial with this status
+	// DropOnAccept closes every connection right after the upgrade.
+	DropOnAccept bool
 
 	mu      sync.Mutex
 	sess    *yamux.Session
@@ -75,7 +77,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.accepts++
 	close(s.ready)
 	s.ready = make(chan struct{})
+	drop := s.DropOnAccept
 	s.mu.Unlock()
+	if drop {
+		sess.Close()
+	}
 	<-sess.CloseChan()
 }
 
