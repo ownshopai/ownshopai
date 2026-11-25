@@ -65,7 +65,12 @@ func portFree(p int) bool {
 }
 
 // DataDir is where the owner's files live: products.xlsx, orders.csv, receipts, the database.
+// OWNSHOP_DATA_DIR (or -data) puts everything in that folder instead, with no home folder involved
+// and no old-folder migration (the Android app and scripted setups use it).
 func DataDir() (string, error) {
+	if d := dataDirOverride(); d != "" {
+		return d, os.MkdirAll(d, 0o755)
+	}
 	base, err := os.UserConfigDir() // macOS: ~/Library/Application Support, Windows: %AppData%
 	if err != nil {
 		return "", err
@@ -79,6 +84,18 @@ func DataDir() (string, error) {
 	}
 	d := filepath.Join(base, appID)
 	return d, os.MkdirAll(d, 0o755)
+}
+
+// dataDirOverride is OWNSHOP_DATA_DIR as an absolute path, or "".
+func dataDirOverride() string {
+	d := os.Getenv("OWNSHOP_DATA_DIR")
+	if d == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(d); err == nil {
+		return abs
+	}
+	return d
 }
 
 // running reports whether a ownshop is already answering at url.
@@ -95,6 +112,8 @@ func running(url string) bool {
 
 func openBrowser(url string) error {
 	switch runtime.GOOS {
+	case "android": // the Android app shows the page itself
+		return nil
 	case "darwin":
 		return exec.Command("open", url).Start()
 	case "windows":
@@ -205,7 +224,8 @@ func runApp(background bool) {
 	if logf != nil {
 		setLogOutput(logf)
 	}
-	if exe, err := os.Executable(); err == nil {
+	// login item and desktop shortcut: not on Android, and not when the data folder is given (scripted setups)
+	if exe, err := os.Executable(); err == nil && runtime.GOOS != "android" && dataDirOverride() == "" {
 		if home, err := os.UserHomeDir(); err == nil {
 			if m := retireLegacyStartup(home, runtime.GOOS, dir); len(m) > 0 {
 				logf.WriteString(fmt.Sprintf("moved old washop shortcuts: %s\n", strings.Join(m, ", ")))
@@ -254,7 +274,7 @@ func fatalBox(msg string) {
 // copy is consistent and the old program does not keep the WhatsApp number busy. On Windows the setup
 // program does this.
 func stopLegacy() {
-	if runtime.GOOS == "windows" || inTermux() {
+	if runtime.GOOS == "windows" || runtime.GOOS == "android" || inTermux() || dataDirOverride() != "" {
 		return
 	}
 	base, err := os.UserConfigDir()

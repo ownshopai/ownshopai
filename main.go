@@ -26,6 +26,8 @@ Shop owners: double-click OwnShop AI. Everything else happens in the browser.
 
 For developers:
   ownshop                                                     same as a double-click (add --background to skip the browser)
+  global: -data <dir> (or OWNSHOP_DATA_DIR) keeps every file there; -public-port <n> (or OWNSHOP_PUBLIC_PORT, default 2008)
+          OWNSHOP_HELPER_DIR=<dir> runs wacli and llama-server from that folder as they are (nothing unpacked)
   ownshop serve   [--addr 127.0.0.1:2007] [--db ownshop.db]              the shop in the foreground; files next to the database
   ownshop chat    [--http :8081] [--phone +31...] [--name ..]  terminal customer simulator (same bot, a fake channel)
   ownshop import  <products.xlsx> [--db ownshop.db]             read a products workbook (sheets Products, FAQ, Delivery slots)
@@ -53,7 +55,43 @@ func newWacli(s *Store, acct string) *Wacli {
 	return w
 }
 
+// envFlags moves -data <dir> and -public-port <n> (also --x and --x=v) from the arguments into
+// OWNSHOP_DATA_DIR and OWNSHOP_PUBLIC_PORT, so every mode (double-click, serve, ...) sees them.
+func envFlags(args []string) []string {
+	names := map[string]string{"data": "OWNSHOP_DATA_DIR", "public-port": "OWNSHOP_PUBLIC_PORT"}
+	out := args[:1:1]
+	for i := 1; i < len(args); i++ {
+		a := strings.TrimLeft(args[i], "-")
+		k, v, hasV := strings.Cut(a, "=")
+		env, ok := names[k]
+		if !ok || !strings.HasPrefix(args[i], "-") {
+			out = append(out, args[i])
+			continue
+		}
+		if !hasV && i+1 < len(args) {
+			i++
+			v = args[i]
+		}
+		os.Setenv(env, v)
+	}
+	return out
+}
+
+// applyEnv reads OWNSHOP_PUBLIC_PORT.
+func applyEnv() {
+	if v := os.Getenv("OWNSHOP_PUBLIC_PORT"); v != "" {
+		var p int
+		if _, err := fmt.Sscan(v, &p); err == nil && p > 0 && p < 65536 {
+			pubDefaultPort = p
+		} else {
+			log.Printf("OWNSHOP_PUBLIC_PORT %q is not a port; using %d", v, pubDefaultPort)
+		}
+	}
+}
+
 func main() {
+	os.Args = envFlags(os.Args)
+	applyEnv()
 	if len(os.Args) < 2 || os.Args[1] == "--background" || strings.HasPrefix(os.Args[1], "-psn_") {
 		runApp(len(os.Args) > 1 && os.Args[1] == "--background")
 		return
@@ -189,7 +227,8 @@ func startShop(dir, dbPath, addr string, ready func()) {
 	go sf.Watch(ctx, 2*time.Second)
 	startChannels(s, hub)
 	stopLink := func() {}
-	onSignal(func() { cancel(); hub.Close(); stopModel(); stopLink() })
+	// SIGINT/SIGTERM: stop the channels, the model (llama-server child), the relay, then close the database.
+	onSignal(func() { cancel(); hub.Close(); stopModel(); stopLink(); s.DB.Close() })
 	app := &App{S: s, Bot: bot, Hub: hub, File: sf, Dir: dir, Links: newLinkService()}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

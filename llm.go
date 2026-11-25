@@ -156,7 +156,7 @@ func StartLlama(bin, model string) (*Llama, error) {
 		return nil, err
 	}
 	args := []string{"-m", model, "--host", "127.0.0.1", "--port", strconv.Itoa(port), "--jinja", "-c", "4096", "--log-disable"}
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "linux" || runtime.GOOS == "android" {
 		// llama-server uses every core by default; on phones (big.LITTLE) and busy VMs its spinning threads then
 		// wait on each other: 0.3 tokens/s with 18 threads vs 93 with 4 in a linux/arm64 container.
 		args = append(args, "-t", strconv.Itoa(min(4, runtime.NumCPU())))

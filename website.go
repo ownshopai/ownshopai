@@ -35,7 +35,6 @@ const (
 	pubCookie  = "__Host-ownshop_pub" // __Host-: Secure, Path=/, no Domain, so a sibling *.ownshopai.store cannot plant it
 	pubKeyPfx  = "webpub:"            // customer key: webpub:<id>
 
-	pubDefaultPort   = 2008
 	pubMaxText       = 1000 // characters per message
 	pubMaxName       = 60
 	pubCookieMaxAge  = 400 * 24 * 3600
@@ -46,6 +45,9 @@ const (
 	pubMsgPerIP      = 40 // messages per IP per minute
 	pubMsgWindow     = time.Minute
 )
+
+// pubDefaultPort is the public chat listener's first port: 2008, or OWNSHOP_PUBLIC_PORT / -public-port.
+var pubDefaultPort = 2008
 
 const pubSchema = `
 CREATE TABLE IF NOT EXISTS pub_users (

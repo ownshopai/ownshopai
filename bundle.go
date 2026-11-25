@@ -30,9 +30,13 @@ func exeName(name string) string {
 	return name
 }
 
-// helperDir is <app data>/bin: ~/Library/Application Support/ownshop/bin, %AppData%\ownshop\bin.
+// helperDir is <data dir>/bin with OWNSHOP_DATA_DIR, else <app data>/bin: ~/Library/Application Support/ownshop/bin, %AppData%\ownshop\bin.
 func helperDir() (string, error) {
 	if d := os.Getenv("OWNSHOP_BIN_DIR"); d != "" {
+		return d, os.MkdirAll(d, 0o755)
+	}
+	if d := dataDirOverride(); d != "" {
+		d = filepath.Join(d, "bin")
 		return d, os.MkdirAll(d, 0o755)
 	}
 	base, err := os.UserConfigDir()
@@ -43,10 +47,22 @@ func helperDir() (string, error) {
 	return d, os.MkdirAll(d, 0o755)
 }
 
-// helper returns the program to run for name: override when it is set, else the bundled copy.
+// helper returns the program to run for name: override when it is set, else the copy in
+// OWNSHOP_HELPER_DIR when that is set, else the bundled copy.
+//
+// OWNSHOP_HELPER_DIR is a read-only folder that already holds the programs (the Android app's native
+// library folder: Android 10+ refuses to run files an app wrote itself). They are run from there as
+// they are; nothing is unpacked.
 func helper(name, override string) (string, error) {
 	if override != "" {
 		return override, nil
+	}
+	if d := os.Getenv("OWNSHOP_HELPER_DIR"); d != "" {
+		p := filepath.Join(d, exeName(name))
+		if st, err := os.Stat(p); err != nil || st.IsDir() {
+			return "", fmt.Errorf("%s is not in OWNSHOP_HELPER_DIR (%s)", exeName(name), d)
+		}
+		return p, nil
 	}
 	b := bundled[name]
 	if b == nil {
@@ -128,7 +144,9 @@ func findFile(p string) string {
 		}
 		dirs = append(dirs, filepath.Join(filepath.Dir(exe), "models"), filepath.Join(filepath.Dir(exe), "..", "Resources", "models"))
 	}
-	if c, err := os.UserConfigDir(); err == nil {
+	if d := dataDirOverride(); d != "" {
+		dirs = append(dirs, filepath.Join(d, "models"))
+	} else if c, err := os.UserConfigDir(); err == nil {
 		dirs = append(dirs, filepath.Join(c, appID, "models"))
 	}
 	for _, d := range dirs {
