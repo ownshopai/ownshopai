@@ -741,3 +741,18 @@ func TestHTTPLinkServiceUp(t *testing.T) {
 		t.Fatal("closed service seen as up")
 	}
 }
+
+func TestLinkBasesOverride(t *testing.T) {
+	t.Setenv("OWNSHOP_LINKS_API", "")
+	if _, api := linkBases(); api != linkAPIBase || linkRelayFor() != linkRelayURL {
+		t.Fatalf("default: %s %s", api, linkRelayFor())
+	}
+	t.Setenv("OWNSHOP_LINKS_API", "http://127.0.0.1:18080/")
+	if _, api := linkBases(); api != "http://127.0.0.1:18080" || linkRelayFor() != "ws://127.0.0.1:18080/v1/relay" {
+		t.Fatalf("local: %s %s", api, linkRelayFor())
+	}
+	t.Setenv("OWNSHOP_LINKS_API", "https://example.test")
+	if linkRelayFor() != "wss://example.test/v1/relay" {
+		t.Fatalf("https: %s", linkRelayFor())
+	}
+}

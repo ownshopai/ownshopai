@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -90,7 +91,33 @@ type httpLinkService struct {
 }
 
 func newLinkService() LinkService {
-	return &httpLinkService{UI: linkUIBase, API: linkAPIBase, HC: &http.Client{Timeout: 20 * time.Second}}
+	ui, api := linkBases()
+	return &httpLinkService{UI: ui, API: api, HC: &http.Client{Timeout: 20 * time.Second}}
+}
+
+// linkBases: the production link service, or a local one for development and end-to-end tests
+// (OWNSHOP_LINKS_API, e.g. http://127.0.0.1:18080, and OWNSHOP_LINKS_UI). Shops never set these.
+func linkBases() (ui, api string) {
+	ui, api = linkUIBase, linkAPIBase
+	if v := strings.TrimRight(os.Getenv("OWNSHOP_LINKS_API"), "/"); v != "" {
+		api = v
+	}
+	if v := strings.TrimRight(os.Getenv("OWNSHOP_LINKS_UI"), "/"); v != "" {
+		ui = v
+	}
+	return ui, api
+}
+
+// linkRelayFor: the relay endpoint of the link service in use (wss:// for https, ws:// for a local http one).
+func linkRelayFor() string {
+	_, api := linkBases()
+	if api == linkAPIBase {
+		return linkRelayURL
+	}
+	if rest, ok := strings.CutPrefix(api, "https://"); ok {
+		return "wss://" + rest + "/v1/relay"
+	}
+	return "ws://" + strings.TrimPrefix(api, "http://") + "/v1/relay"
 }
 
 func (h *httpLinkService) call(ctx context.Context, method, path, key string, in, out any) error {

@@ -89,7 +89,7 @@ func (t *WebLink) Start() error {
 	// a client stopped by a refusal (401/403/404) is single-use: dial again with a new one
 	u := t.RelayURL
 	if u == "" {
-		u = linkRelayURL
+		u = linkRelayFor()
 	}
 	var c *relay.Client
 	c = relay.New(relay.Config{URL: u, Name: name, Handler: t.Public,
