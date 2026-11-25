@@ -11,17 +11,13 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
-const testHost = "shop-words-here.trycloudflare.com"
+const testHost = "myshop.ownshopai.store"
 
 // pubShop is a shop with the public chat channel behind the public handler, host fixed to testHost.
 func pubShop(t *testing.T) (*Store, *App, http.Handler, chan struct{}) {
@@ -33,7 +29,7 @@ func pubShop(t *testing.T) (*Store, *App, http.Handler, chan struct{}) {
 	hub.OnMessage = func(in Inbound) { b.Handle(context.Background(), in); done <- struct{}{} }
 	hub.Add(&PubChat{S: s})
 	a := &App{S: s, Bot: b, Hub: hub, Dir: dir}
-	a.Pub = newPubSite(a, func() string { return testHost })
+	a.Pub = newPubSite(a, nil)
 	return s, a, a.Pub.Handler(), done
 }
 
@@ -102,8 +98,8 @@ func TestPublicListenerServesOnlyCustomerRoutes(t *testing.T) {
 			t.Errorf("%s: %d %q, want 200 %s", p, rr.Code, rr.Header().Get("Content-Type"), ct)
 		}
 	}
-	// another host name (or the link off) gets nothing at all
-	for _, host := range []string{"localhost:2008", "127.0.0.1:2008", "evil.example.com"} {
+	// this computer or the LAN by address gets nothing at all (see publicHost)
+	for _, host := range []string{"localhost:2008", "127.0.0.1:2008", "192.168.1.5:2008", "[::1]:2008", "", "intranet"} {
 		if rr := get("/", host); rr.Code != 404 {
 			t.Errorf("host %s: %d, want 404", host, rr.Code)
 		}
@@ -316,102 +312,6 @@ func TestCleanPhone(t *testing.T) {
 	}
 }
 
-func TestFindCloudflared(t *testing.T) {
-	dir := t.TempDir()
-	fake := filepath.Join(dir, "cloudflared")
-	notFound := func(string) (string, error) { return "", errors.New("not found") }
-	if p := findCloudflared(notFound, []string{fake}); p != "" {
-		t.Fatalf("found a missing program: %q", p)
-	}
-	os.WriteFile(fake, []byte("#!/bin/sh\n"), 0o755)
-	if p := findCloudflared(notFound, []string{filepath.Join(dir, "nope"), fake}); p != fake {
-		t.Fatalf("got %q, want %q", p, fake)
-	}
-	if p := findCloudflared(func(string) (string, error) { return "/on/path/cloudflared", nil }, []string{fake}); p != "/on/path/cloudflared" {
-		t.Fatalf("PATH not preferred: %q", p)
-	}
-	if runtime.GOOS == "windows" {
-		t.Setenv("LOCALAPPDATA", `C:\Users\x\AppData\Local`)
-		if !slices.Contains(cloudflaredCandidates(), `C:\Users\x\AppData\Local\Microsoft\WinGet\Links\cloudflared.exe`) {
-			t.Fatal("winget links dir missing")
-		}
-	} else if !slices.Contains(cloudflaredCandidates(), "/opt/homebrew/bin/cloudflared") {
-		t.Fatal("homebrew path missing")
-	}
-}
-
-// fakeCloudflared writes a script that prints its arguments and TUNNEL_TOKEN state, then a quick link.
-func fakeCloudflared(t *testing.T) (string, string) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell script fake")
-	}
-	dir := t.TempDir()
-	log := filepath.Join(dir, "args.txt")
-	p := filepath.Join(dir, "cloudflared")
-	os.WriteFile(p, []byte(`#!/bin/sh
-if [ "$1" = "--version" ]; then echo "cloudflared version 2026.5.2 (built 2026-05-01)"; exit 0; fi
-echo "args: $*" > `+log+`
-echo "token: $TUNNEL_TOKEN" >> `+log+`
-echo "INF |  https://fake-quick-link.trycloudflare.com  |" >&2
-echo "INF Registered tunnel connection connIndex=0" >&2
-sleep 30
-`), 0o755)
-	return p, log
-}
-
-func waitState(t *testing.T, tn *Tunnel, want string) {
-	for i := 0; i < 100; i++ {
-		if tn.View().State == want {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("state %q, want %q", tn.View().State, want)
-}
-
-func TestTunnelLinkKeepsTokenSecret(t *testing.T) {
-	s, _ := setup(t)
-	bin, log := fakeCloudflared(t)
-	const secret = "eyJhIjoiZmFrZS10b2tlbi1mb3ItdGVzdHMifQ" // gitleaks:allow (base64 of a fake test token)
-	s.Set(setLinkToken, secret)
-	s.Set(setLinkHost, "chat.ownshopai.store")
-	tn := &Tunnel{S: s, Port: 2008, Find: func() string { return bin }}
-	cmd := tn.command(bin)
-	if strings.Contains(strings.Join(cmd.Args, " "), secret) {
-		t.Fatal("token on the command line")
-	}
-	if !slices.Contains(cmd.Env, "TUNNEL_TOKEN="+secret) || strings.Join(cmd.Args[1:], " ") != "tunnel --no-autoupdate run" {
-		t.Fatalf("args %v", cmd.Args)
-	}
-	var logs bytes.Buffer
-	captureLog(t, &logs)
-	if err := tn.Start(); err != nil {
-		t.Fatal(err)
-	}
-	waitState(t, tn, "on")
-	defer tn.Stop()
-	if tn.URL() != "https://chat.ownshopai.store" {
-		t.Fatalf("url %q", tn.URL())
-	}
-	b, _ := os.ReadFile(log)
-	if !strings.Contains(string(b), "token: "+secret) || strings.Contains(strings.SplitN(string(b), "\n", 2)[0], secret) {
-		t.Fatalf("fake saw %s", b)
-	}
-	if strings.Contains(logs.String(), secret) {
-		t.Fatal("token in the log")
-	}
-	if v, _ := json.Marshal(tn.View()); strings.Contains(string(v), secret) {
-		t.Fatal("token in the card data")
-	}
-	// the owner page never shows it
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: tn, Dir: t.TempDir()}
-	rr := httptest.NewRecorder()
-	app.Routes().ServeHTTP(rr, httptest.NewRequest("GET", "/settings", nil))
-	if strings.Contains(rr.Body.String(), secret) || !strings.Contains(rr.Body.String(), "https://chat.ownshopai.store") {
-		t.Fatal("settings page shows the token, or not the link")
-	}
-}
-
 func TestPushSubscriptionStorageAndCleanup(t *testing.T) {
 	s, _, h, _ := pubShop(t)
 	br := &browser{t: t, h: h, ip: "198.51.100.20"}
@@ -475,10 +375,10 @@ func (br *browser) lastBody(h http.Handler) string {
 // ---- free fixed link (link service fake) ----
 
 type fakeLinks struct {
-	down                                                          bool
-	exchanged, claimed, released, revoked, beats, tokens, rotated int
-	lastKey, lastVerifier, lastChallenge                          string
-	info                                                          LinkInfo
+	down                                         bool
+	exchanged, claimed, released, revoked, beats int
+	lastKey, lastVerifier, lastChallenge         string
+	info                                         LinkInfo
 }
 
 func (f *fakeLinks) Up(context.Context) bool { return !f.down }
@@ -513,19 +413,11 @@ func (f *fakeLinks) Claim(_ context.Context, key, name string) (LinkClaim, error
 	if name == "taken" {
 		return LinkClaim{}, &LinkError{Status: 409, Code: "name_taken", Message: "x"}
 	}
-	return LinkClaim{Name: name, Hostname: name + ".ownshopai.store", TunnelToken: "tunnel-secret-xyz", Origin: "http://127.0.0.1:2008"}, nil
+	return LinkClaim{Name: name, Hostname: name + ".ownshopai.store", URL: "https://" + name + ".ownshopai.store"}, nil
 }
 func (f *fakeLinks) Heartbeat(_ context.Context, key, name string) (LinkInfo, error) {
 	f.beats++
 	return f.info, nil
-}
-func (f *fakeLinks) Token(context.Context, string, string) (string, error) {
-	f.tokens++
-	return "tunnel-secret-new", nil
-}
-func (f *fakeLinks) Rotate(context.Context, string, string) (string, error) {
-	f.rotated++
-	return "tunnel-secret-rotated", nil
 }
 func (f *fakeLinks) Release(_ context.Context, key, name string) error { f.released++; return nil }
 
@@ -564,27 +456,15 @@ func TestFreeLinkSignInClaimRelease(t *testing.T) {
 	if err != nil || host != "myshop.ownshopai.store" || fl.lastKey != "osk_appkey-secret-123" {
 		t.Fatalf("claim %q %v", host, err)
 	}
-	tn := &Tunnel{S: s, Port: 2008}
-	cmd := tn.command("/bin/cloudflared")
-	if strings.Contains(strings.Join(cmd.Args, " "), "tunnel-secret-xyz") || !slices.Contains(cmd.Env, "TUNNEL_TOKEN=tunnel-secret-xyz") {
-		t.Fatalf("link mode command %v", cmd.Args)
+	if s.Get(setLinkName) != "myshop" || s.Get(setLinkHost) != "myshop.ownshopai.store" {
+		t.Fatal("claim not kept")
 	}
-	// heartbeat once a day; a newer token_changed_at fetches the token and restarts the tunnel
-	fl.info = LinkInfo{Name: "myshop", Status: "active", TokenChangedAt: "2020-01-01T00:00:00Z"}
-	if beatOnce(ctx, s, fl) || fl.tokens != 0 {
-		t.Fatal("old token_changed_at fetched a token")
-	}
-	if beatOnce(ctx, s, fl) || fl.beats != 1 {
+	// heartbeat once a day
+	fl.info = LinkInfo{Name: "myshop", Status: "active"}
+	beatOnce(ctx, s, fl)
+	beatOnce(ctx, s, fl)
+	if fl.beats != 1 {
 		t.Fatalf("second heartbeat the same day: %d", fl.beats)
-	}
-	s.Set(setLinkBeatDate, "")
-	fl.info = LinkInfo{Name: "myshop", Status: "active", TokenChangedAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}
-	restarted := 0
-	hctx, cancel := context.WithCancel(ctx)
-	go func() { time.Sleep(200 * time.Millisecond); cancel() }()
-	linkHeartbeat(hctx, s, fl, func() { restarted++ })
-	if fl.tokens != 1 || restarted != 1 || s.Get(setLinkToken) != "tunnel-secret-new" {
-		t.Fatalf("rotated token not picked up: tokens %d restarts %d", fl.tokens, restarted)
 	}
 	s.Set(setLinkBeatDate, "")
 	fl.info = LinkInfo{Name: "myshop", Status: "disabled", DisabledReason: "inactive"}
@@ -592,15 +472,12 @@ func TestFreeLinkSignInClaimRelease(t *testing.T) {
 	if s.Get(setLinkStatus) != "disabled:inactive" {
 		t.Fatal("disabled link not noted")
 	}
-	if err := RotateLink(ctx, s, fl); err != nil || s.Get(setLinkToken) != "tunnel-secret-rotated" {
-		t.Fatalf("rotate: %v", err)
-	}
 	// the owner page shows the link but no secret
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: tn, Links: fl, Dir: t.TempDir()}
+	app := &App{S: s, Hub: NewHub(nil), Link: &WebLink{S: s, Port: 2008}, Links: fl, Dir: t.TempDir()}
 	rr := httptest.NewRecorder()
 	app.Routes().ServeHTTP(rr, httptest.NewRequest("GET", "/settings", nil))
 	body := rr.Body.String()
-	for _, secret := range []string{"osk_appkey-secret-123", "tunnel-secret-xyz", "tunnel-secret-new", "tunnel-secret-rotated"} {
+	for _, secret := range []string{"osk_appkey-secret-123"} {
 		if strings.Contains(body, secret) {
 			t.Fatalf("settings page shows %s", secret)
 		}
@@ -609,7 +486,7 @@ func TestFreeLinkSignInClaimRelease(t *testing.T) {
 		t.Fatal("link or its off state not shown")
 	}
 	// /website/linked is on the owner listener only
-	if err := ReleaseLink(ctx, s, fl); err != nil || fl.released != 1 || s.Get(setLinkToken) != "" || s.Get(setLinkHost) != "" {
+	if err := ReleaseLink(ctx, s, fl); err != nil || fl.released != 1 || s.Get(setLinkName) != "" || s.Get(setLinkHost) != "" {
 		t.Fatal("release did not forget the link")
 	}
 	if err := SignOutLink(ctx, s, fl); err != nil || fl.revoked != 1 || fl.lastKey != "osk_appkey-secret-123" || s.Get(setLinkAppKey) != "" {
@@ -620,8 +497,7 @@ func TestFreeLinkSignInClaimRelease(t *testing.T) {
 func TestLinkedCallbackOnOwnerPageOnly(t *testing.T) {
 	s, _ := setup(t)
 	fl := &fakeLinks{}
-	tn := &Tunnel{S: s, Port: 2008}
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: tn, Links: fl, Dir: t.TempDir()}
+	app := &App{S: s, Hub: NewHub(nil), Link: &WebLink{S: s, Port: 2008}, Links: fl, Dir: t.TempDir()}
 	StartLinkLogin(s, fl, "x")
 	st := s.Get(setLinkState)
 	req := httptest.NewRequest("GET", "/website/linked?code=good-code&state="+st, nil)
@@ -646,18 +522,7 @@ func captureLog(t *testing.T, w io.Writer) {
 	t.Cleanup(func() { stdlog.SetOutput(old) })
 }
 
-func TestFixedLinkNeedsPort2008(t *testing.T) {
-	s, _ := setup(t)
-	bin, _ := fakeCloudflared(t)
-	s.Set(setLinkToken, "tok")
-	s.Set(setLinkHost, "chat.ownshopai.store")
-	tn := &Tunnel{S: s, Port: 2009, Find: func() string { return bin }}
-	if err := tn.Start(); err == nil || !strings.Contains(err.Error(), "2008") {
-		t.Fatalf("fixed link started on port 2009: %v", err)
-	}
-	if tn.View().State == "on" || tn.View().State == "starting" {
-		t.Fatal("tunnel running")
-	}
+func TestOwnerPortNeverTakesPublicPort(t *testing.T) {
 	if p, _, _ := pickPort(2007, func(p int) bool { return p != 2007 }, func(int) bool { return false }); p == pubDefaultPort {
 		t.Fatal("owner page took the public port")
 	}
@@ -665,7 +530,7 @@ func TestFixedLinkNeedsPort2008(t *testing.T) {
 
 func TestWebsiteOwnerRoutesRefuseOtherSites(t *testing.T) {
 	s, _ := setup(t)
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: &Tunnel{S: s, Port: 2008}, Links: &fakeLinks{}, Dir: t.TempDir()}
+	app := &App{S: s, Hub: NewHub(nil), Link: &WebLink{S: s, Port: 2008}, Links: &fakeLinks{}, Dir: t.TempDir()}
 	h := app.Routes()
 	post := func(host, origin string) int {
 		req := httptest.NewRequest("POST", "/channels/website/start", strings.NewReader(""))
@@ -686,6 +551,11 @@ func TestWebsiteOwnerRoutesRefuseOtherSites(t *testing.T) {
 	if s.Get(setWebPublic) != "" {
 		t.Fatal("a foreign page turned the public link on")
 	}
+	s.Set(setLinkName, "name")
+	s.Set(setLinkHost, "name.ownshopai.store")
+	s.Set(setLinkAppKey, "osk_k")
+	app.Link.RelayURL = "ws://127.0.0.1:1/v1/relay" // nothing listens: it keeps retrying, never reaches the internet
+	defer app.Link.halt()
 	if code := post("127.0.0.1:2007", "http://127.0.0.1:2007"); code != 303 || s.Get(setWebPublic) != "on" {
 		t.Fatalf("owner post: %d", code)
 	}
@@ -705,9 +575,7 @@ func TestHTTPLinkServiceWire(t *testing.T) {
 			w.WriteHeader(409)
 			io.WriteString(w, `{"error":{"code":"name_taken","message":"That name is taken.","request_id":"r1"}}`)
 		case "/v1/heartbeat":
-			io.WriteString(w, `{"name":"a","hostname":"a.ownshopai.store","status":"active","token_changed_at":"2026-11-23T10:00:00Z"}`)
-		case "/v1/token", "/v1/rotate":
-			io.WriteString(w, `{"name":"a","hostname":"a.ownshopai.store","tunnel_token":"t2"}`)
+			io.WriteString(w, `{"name":"a","hostname":"a.ownshopai.store","status":"active"}`)
 		default:
 			io.WriteString(w, `{"ok":true}`)
 		}
@@ -728,12 +596,15 @@ func TestHTTPLinkServiceWire(t *testing.T) {
 		t.Fatalf("error %v", err)
 	}
 	info, _ := ls.Heartbeat(ctx, "osk_k", "a")
-	tok, _ := ls.Token(ctx, "osk_k", "a")
-	rot, _ := ls.Rotate(ctx, "osk_k", "a")
 	ls.Release(ctx, "osk_k", "a")
 	ls.Revoke(ctx, "osk_k")
-	if info.TokenChangedAt == "" || tok != "t2" || rot != "t2" {
-		t.Fatal(info, tok, rot)
+	if info.Status != "active" {
+		t.Fatal(info)
+	}
+	for _, h := range hits {
+		if h.path == "/v1/token" || h.path == "/v1/rotate" {
+			t.Errorf("%s is gone from the contract but was called", h.path)
+		}
 	}
 	for _, h := range hits {
 		if strings.Contains(h.body, "osk_") {
@@ -763,12 +634,11 @@ func TestDeleteShopReleasesFreeLink(t *testing.T) {
 	s.Set(setLinkAppKey, "osk_k")
 	s.Set(setLinkName, "myshop")
 	s.Set(setLinkHost, "myshop.ownshopai.store")
-	s.Set(setLinkToken, "tok")
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: &Tunnel{S: s, Port: 2008}, Links: fl, Dir: dir}
+	app := &App{S: s, Hub: NewHub(nil), Link: &WebLink{S: s, Port: 2008}, Links: fl, Dir: dir}
 	if _, err := app.ResetShop(false); err != nil {
 		t.Fatal(err)
 	}
-	if fl.released != 1 || fl.revoked != 1 || s.Get(setLinkToken) != "" || s.Get(setLinkAppKey) != "" {
+	if fl.released != 1 || fl.revoked != 1 || s.Get(setLinkHost) != "" || s.Get(setLinkAppKey) != "" {
 		t.Fatalf("released %d revoked %d", fl.released, fl.revoked)
 	}
 }
@@ -820,7 +690,7 @@ func TestPublicSigninNameOptionalIdentifierRequired(t *testing.T) {
 func TestWebsiteCardComingSoonAndNoOldModes(t *testing.T) {
 	s, _ := setup(t)
 	fl := &fakeLinks{down: true}
-	app := &App{S: s, Hub: NewHub(nil), Tunnel: &Tunnel{S: s, Port: 2008}, Links: fl, Dir: t.TempDir()}
+	app := &App{S: s, Hub: NewHub(nil), Link: &WebLink{S: s, Port: 2008}, Links: fl, Dir: t.TempDir()}
 	page := func() string {
 		linkUpCache.Lock()
 		linkUpCache.at = time.Time{}
@@ -833,7 +703,7 @@ func TestWebsiteCardComingSoonAndNoOldModes(t *testing.T) {
 	if !strings.Contains(b, "Coming soon") || !strings.Contains(b, "<button disabled>Sign in with Google</button>") {
 		t.Fatal("no Coming soon while the service is down")
 	}
-	for _, gone := range []string{"Quick link", "trycloudflare", "own domain", "Tunnel token", "(recommended)"} {
+	for _, gone := range []string{"Quick link", "trycloudflare", "own domain", "Tunnel token", "(recommended)", "cloudflared", "tunnel program", "New tunnel key"} {
 		if strings.Contains(b, gone) {
 			t.Errorf("card still offers %q", gone)
 		}
@@ -843,7 +713,7 @@ func TestWebsiteCardComingSoonAndNoOldModes(t *testing.T) {
 	if strings.Contains(b, "Coming soon") || !strings.Contains(b, `action="/channels/website/signin`) {
 		t.Fatal("card does not work once the service answers")
 	}
-	for _, p := range []string{"/channels/website/token"} {
+	for _, p := range []string{"/channels/website/token", "/channels/website/rotate", "/channels/website/check"} {
 		req := httptest.NewRequest("POST", p, nil)
 		req.Host = "127.0.0.1:2007"
 		rr := httptest.NewRecorder()

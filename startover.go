@@ -251,8 +251,8 @@ func (sf *ShopFile) Empty() error {
 // releaseLinkBestEffort gives the free fixed link back and signs out before a shop is deleted, so
 // the name does not stay tied to a shop that no longer exists. Failures do not stop the reset.
 func (a *App) releaseLinkBestEffort() {
-	if a.Tunnel != nil {
-		a.Tunnel.halt()
+	if a.Link != nil {
+		a.Link.halt()
 	}
 	if a.Links == nil {
 		return

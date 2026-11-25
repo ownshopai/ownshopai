@@ -15,10 +15,10 @@ import (
 // These routes live on the owner page (localhost only), never on the public listener.
 
 func (a *App) websiteData(d map[string]any) {
-	if a.Tunnel == nil {
+	if a.Link == nil {
 		return
 	}
-	v := a.Tunnel.View()
+	v := a.Link.View()
 	d["Web"] = v
 	d["SignedIn"] = a.S.Get(setLinkAppKey) != ""
 	d["LinkUp"] = a.linkServiceUp()
@@ -30,18 +30,10 @@ func (a *App) websiteData(d map[string]any) {
 		}
 	}
 	d["LinkDomain"] = linkDomain
+	d["LinkErr"] = linkErrWords(v.Err)
 	if v.State == "starting" {
 		d["Refresh"] = true
 	}
-}
-
-// restartTunnel applies a changed mode when the link is on.
-func (a *App) restartTunnel() error {
-	if a.S.Get(setWebPublic) != "on" {
-		return nil
-	}
-	a.Tunnel.halt()
-	return a.Tunnel.Start()
 }
 
 func (a *App) websiteRoutes(m *http.ServeMux) {
@@ -61,7 +53,7 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return
 			}
-			if a.Tunnel == nil {
+			if a.Link == nil {
 				back(w, r, ret(r)+"#website", "The website channel is not running in this mode.")
 				return
 			}
@@ -72,27 +64,19 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 		http.Redirect(w, r, ret(r)+"?msg="+urlQ(msg)+"#website", http.StatusSeeOther)
 	}
 	m.HandleFunc("POST /channels/website/start", need(func(w http.ResponseWriter, r *http.Request) {
-		if err := a.Tunnel.Start(); err != nil {
+		if err := a.Link.Start(); err != nil {
 			backTo(w, r, "Not started: "+err.Error())
 			return
 		}
-		time.Sleep(4 * time.Second) // most links are ready by now; the page refreshes until it is
+		time.Sleep(2 * time.Second) // most links are online by now; the page refreshes until it is
 		backTo(w, r, "Starting your public web chat link.")
 	}))
 	m.HandleFunc("POST /channels/website/stop", need(func(w http.ResponseWriter, r *http.Request) {
-		a.Tunnel.Stop()
+		a.Link.Stop()
 		backTo(w, r, "Your public web chat link is off.")
 	}))
-	m.HandleFunc("POST /channels/website/check", need(func(w http.ResponseWriter, r *http.Request) {
-		a.Tunnel.Detect()
-		if a.Tunnel.View().Found {
-			backTo(w, r, "Found Cloudflare's tunnel program.")
-			return
-		}
-		backTo(w, r, "Still not found. Install it, then press Check again.")
-	}))
 	m.HandleFunc("GET /channels/website/qr.png", need(func(w http.ResponseWriter, r *http.Request) {
-		u := a.Tunnel.URL()
+		u := a.Link.URL()
 		if u == "" {
 			http.NotFound(w, r)
 			return
@@ -105,6 +89,16 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(png)
+	}))
+	// Relay status for the owner (and the Android shell): JSON, owner port only. No secrets.
+	m.HandleFunc("GET /relay/status", need(func(w http.ResponseWriter, r *http.Request) {
+		v := a.Link.View()
+		u := ""
+		if v.LinkHost != "" {
+			u = "https://" + v.LinkHost
+		}
+		jsonOut(w, 200, map[string]any{"connected": v.Connected, "state": v.State, "last_connected_at": v.LastConnected,
+			"last_error": v.Err, "name": v.Name, "url": u})
 	}))
 	// Free fixed link: register, verify, claim, release.
 	m.HandleFunc("GET /channels/website/available", need(func(w http.ResponseWriter, r *http.Request) {
@@ -148,12 +142,18 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 			http.Redirect(w, r, "/settings?msg="+urlQ("Not signed in: "+err.Error())+"#website", http.StatusSeeOther)
 			return
 		}
+		if a.S.Get(setLinkName) != "" {
+			a.Link.Resume() // a link claimed before signing out comes back online
+			http.Redirect(w, r, "/settings?msg="+urlQ("Signed in.")+"#website", http.StatusSeeOther)
+			return
+		}
 		http.Redirect(w, r, "/settings?msg="+urlQ("Signed in. Now pick the name for your free link.")+"#website", http.StatusSeeOther)
 	}))
 	m.HandleFunc("POST /channels/website/signout", need(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
-		msg := "Signed out of the link service. Your link keeps working."
+		a.Link.halt() // the relay signs in with the app key; the owner's choice stays, so signing in again resumes it
+		msg := "Signed out of the link service. Your link is offline until you sign in again (the name stays yours)."
 		if err := SignOutLink(ctx, a.S, a.Links); err != nil {
 			msg += " (The service could not be told: " + err.Error() + ")"
 		}
@@ -167,26 +167,15 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 			backTo(w, r, "No link yet: "+err.Error())
 			return
 		}
-		a.Tunnel.halt()
-		if err := a.Tunnel.Start(); err != nil {
+		if err := a.Link.restart(); err != nil {
 			backTo(w, r, "Your link is https://"+host+" but it did not start: "+err.Error())
 			return
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(2 * time.Second)
 		backTo(w, r, "Your link is https://"+host+". It stays the same after a restart.")
 	}))
-	m.HandleFunc("POST /channels/website/rotate", need(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		if err := RotateLink(ctx, a.S, a.Links); err != nil {
-			backTo(w, r, "Not changed: "+err.Error())
-			return
-		}
-		a.restartTunnel()
-		backTo(w, r, "Your link has a new tunnel key; the old one no longer works. The link itself is the same.")
-	}))
 	m.HandleFunc("POST /channels/website/release", need(func(w http.ResponseWriter, r *http.Request) {
-		a.Tunnel.Stop()
+		a.Link.Stop()
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		msg := "Your free link is released. Someone else can take the name now."
@@ -195,6 +184,21 @@ func (a *App) websiteRoutes(m *http.ServeMux) {
 		}
 		backTo(w, r, msg)
 	}))
+}
+
+// linkErrWords turns a relay refusal into words for the owner.
+func linkErrWords(e string) string {
+	switch {
+	case e == "":
+		return ""
+	case strings.Contains(e, "HTTP 404"):
+		return "the link service does not know this link any more; release it and get a new one"
+	case strings.Contains(e, "HTTP 403"):
+		return "the link service turned this link off; write to io@deemwar.com"
+	case strings.Contains(e, "HTTP 401"), strings.Contains(e, "not signed in"):
+		return "the sign-in is no longer valid; sign in with Google again"
+	}
+	return "not connected yet, trying again (" + e + ")"
 }
 
 func urlQ(s string) string { return url.QueryEscape(s) }

@@ -19,9 +19,10 @@ import (
 	"unicode/utf8"
 )
 
-// Website channel: the customer web chat on a public link (see tunnel.go). It is served by its own
-// listener (127.0.0.1:2008 or the next free port) that knows only the customer chat routes; the
-// owner page on :2007 is never reachable through the tunnel.
+// Website channel: the customer web chat on a public link (see weblink.go). One public-only handler
+// (pubSite.Handler) knows only the customer chat routes; it is served on its own listener
+// (127.0.0.1:2008 or the next free port) AND over the link relay. The owner page on :2007 is never
+// what gets exposed.
 //
 // Sign-in is a name and a phone number or an email (at least one), no password. The identity is the BROWSER: a long-lived random
 // token in an HttpOnly cookie (only its SHA-256 is stored). A browser sees only its own chat; the
@@ -351,14 +352,18 @@ func (l *limiter) full(key string) bool {
 // ---- the public listener ----
 
 type pubSite struct {
-	a    *App
-	host func() string // the only Host this listener answers to; "" while the link is down
+	a *App
+	// hostOK decides the Host this handler answers to (publicHost outside tests).
+	hostOK func(host string) bool
 
 	signinIP, signinBrowser, msgIP, msgBrowser *limiter
 }
 
-func newPubSite(a *App, host func() string) *pubSite {
-	return &pubSite{a: a, host: host,
+func newPubSite(a *App, hostOK func(string) bool) *pubSite {
+	if hostOK == nil {
+		hostOK = publicHost
+	}
+	return &pubSite{a: a, hostOK: hostOK,
 		signinIP: newLimiter(pubSigninPerIP, pubSigninWindow), signinBrowser: newLimiter(pubSigninPerBrow, pubSigninWindow),
 		msgIP: newLimiter(pubMsgPerIP, pubMsgWindow), msgBrowser: newLimiter(pubMsgPerBrowser, pubMsgWindow)}
 }
@@ -372,8 +377,28 @@ func (a *App) pubChat() *PubChat {
 	return nil
 }
 
-// clientIP is Cloudflare's CF-Connecting-IP (the listener is only reachable through cloudflared on
-// this machine), else the socket address.
+// publicHost is the Host rule of the public handler: any DNS name that is not this computer
+// (not localhost, not an IP address). It covers <claimed name>.ownshopai.store from the relay and a
+// name the owner points at 127.0.0.1:2008 themselves (ngrok, cloudflared; "Serve it yourself" in the
+// README). It is safe because the handler holds ONLY the customer chat (owner routes do not exist
+// here), and a page that rebinds its own name to 127.0.0.1 gets nothing: it is plain http, so the
+// browser never sends or keeps the Secure __Host- cookie, and every POST needs an https Origin equal
+// to the Host. Refusing localhost and IPs keeps the chat from being used straight from this computer
+// or the LAN, where the visitor address and https assumptions do not hold.
+func publicHost(host string) bool {
+	h := host
+	if hh, _, err := net.SplitHostPort(host); err == nil {
+		h = hh
+	}
+	h = strings.TrimSuffix(strings.ToLower(h), ".")
+	if h == "" || h == "localhost" || strings.HasSuffix(h, ".localhost") || net.ParseIP(strings.Trim(h, "[]")) != nil {
+		return false
+	}
+	return strings.Contains(h, ".")
+}
+
+// clientIP is CF-Connecting-IP (set by the link service relay, which replaces any value the visitor
+// sent; the listener itself is on 127.0.0.1 only), else the socket address.
 func clientIP(r *http.Request) string {
 	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" && net.ParseIP(ip) != nil {
 		return ip
@@ -388,8 +413,8 @@ func clientIP(r *http.Request) string {
 // guard: Host must be the current public host, a POST must come from that origin and carry JSON.
 func (p *pubSite) guard(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		host := p.host()
-		if host == "" || !strings.EqualFold(r.Host, host) {
+		host := r.Host
+		if !p.hostOK(host) {
 			http.NotFound(w, r)
 			return
 		}
@@ -580,7 +605,8 @@ func listenPublic(start int, avoid int) (net.Listener, int, error) {
 	return nil, 0, errors.New("no free port for the public web chat")
 }
 
-// startWebsite wires the Website channel into a running shop: channel, public listener, tunnel.
+// startWebsite wires the Website channel into a running shop: channel, public listener, relay. The
+// listener and the relay serve the same public handler.
 func (a *App) startWebsite(ownerPort int) func() {
 	pc := &PubChat{S: a.S, Push: func(id int64, text string) { sendPush(a.S, nil, id, a.S.Get("shop_name"), text) }}
 	if err := a.Hub.Add(pc); err != nil {
@@ -591,9 +617,10 @@ func (a *App) startWebsite(ownerPort int) func() {
 		log.Printf("website: %v", err)
 		return func() {}
 	}
-	a.Tunnel = &Tunnel{S: a.S, Port: port}
-	a.Pub = newPubSite(a, a.Tunnel.PublicHost)
-	go http.Serve(ln, a.Pub.Handler())
-	go a.Tunnel.Resume()
-	return a.Tunnel.halt
+	a.Pub = newPubSite(a, nil)
+	h := a.Pub.Handler()
+	a.Link = &WebLink{S: a.S, Port: port, Public: h}
+	go http.Serve(ln, h)
+	go a.Link.Resume()
+	return a.Link.halt
 }

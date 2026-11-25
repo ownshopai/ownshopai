@@ -57,7 +57,7 @@ type App struct {
 	UCP  *ucpState // Universal Commerce Protocol checkouts (ucp.go); off unless ucp_enabled
 
 	webSess *webSessions // web chat logins (webchat.go)
-	Tunnel  *Tunnel      // the Website channel's public link (tunnel.go); nil when not running
+	Link    *WebLink     // the Website channel's free link through the relay (weblink.go); nil when not running
 	Pub     *pubSite     // the public listener (website.go)
 	Links   LinkService  // the free fixed link service (linkservice_client.go)
 }
@@ -539,8 +539,8 @@ func (a *App) orders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := map[string]any{"Orders": list, "Msg": r.URL.Query().Get("msg"), "PubPhones": a.S.pubPhones()}
-	if a.Tunnel != nil {
-		d["PubURL"] = a.Tunnel.URL()
+	if a.Link != nil {
+		d["PubURL"] = a.Link.URL()
 	}
 	a.page(w, "orders", d)
 }

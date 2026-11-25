@@ -19,6 +19,7 @@
 <tr><td><a href="https://github.com/mark3labs/mcp-go">mcp-go</a></td><td>The MCP endpoint for AI shopping agents (UCP).</td><td>MIT</td></tr>
 <tr><td><a href="https://github.com/xuri/excelize">excelize</a></td><td>Reads and writes your Excel products file.</td><td>BSD-3-Clause</td></tr>
 <tr><td><a href="https://github.com/skip2/go-qrcode">go-qrcode</a></td><td>Makes the payment and web chat link QR codes.</td><td>MIT</td></tr>
+<tr><td><a href="https://github.com/coder/websocket">websocket</a> and <a href="https://github.com/hashicorp/yamux">yamux</a></td><td>Keep the one connection to the link service that carries the web chat (yamux unmodified).</td><td>ISC, MPL-2.0</td></tr>
 <tr><td><a href="https://github.com/SherClockHolmes/webpush-go">webpush-go</a> and <a href="https://github.com/golang-jwt/jwt">golang-jwt</a></td><td>Sends web chat notifications (Web Push) to customers' browsers.</td><td>MIT</td></tr>
 <tr><td><a href="https://gitlab.com/cznic/sqlite">modernc.org/sqlite</a> (SQLite is public domain)</td><td>The shop's database.</td><td>BSD-3-Clause</td></tr>
 <tr><td><a href="https://go.dev">Go</a>, golang.org/x/crypto, x/image, x/net, x/sys, x/text, and the Go fonts</td><td>The language, password hashing, images, invoices and receipts.</td><td>BSD-3-Clause</td></tr>
@@ -30,8 +31,7 @@
 <thead><tr><th>Service</th><th>How</th></tr></thead>
 <tbody>
 <tr><td><a href="https://core.telegram.org/bots/api">Telegram Bot API</a></td><td>The official, free API. Your bot token stays on your computer.</td></tr>
-<tr><td><a href="https://github.com/cloudflare/cloudflared">cloudflared</a> (optional, Apache 2.0)</td><td>Cloudflare's tunnel program puts the customer web chat on a public link. Not inside OwnShop AI: you install it yourself if you want the web chat link, and OwnShop AI runs it as a separate program. Cloudflare carries that traffic.</td></tr>
-<tr><td>OwnShop AI link service</td><td>Only for the free fixed name.ownshopai.store link: you sign in with Google, and it sets up the Cloudflare tunnel for your name.</td></tr>
+<tr><td>OwnShop AI link service</td><td>Only for the free fixed name.ownshopai.store link: you sign in with Google, and it relays your customers' chats to the app over one connection the app opens.</td></tr>
 <tr><td>WhatsApp</td><td>Through wacli, an unofficial WhatsApp Web client. Not affiliated with, endorsed by, or sponsored by WhatsApp or Meta.</td></tr>
 </tbody>
 </table>

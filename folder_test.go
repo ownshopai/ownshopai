@@ -106,7 +106,7 @@ func TestOpenFolderEndpoint(t *testing.T) {
 		t.Fatalf("path: %d %v", rr.Code, j)
 	}
 	// the public chat listener does not serve it
-	app.Pub = newPubSite(app, func() string { return "shop.ownshopai.store" })
+	app.Pub = newPubSite(app, nil)
 	for _, p := range []string{"/folder/open", "/folder/path"} {
 		req := httptest.NewRequest("POST", p, strings.NewReader("which=data"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

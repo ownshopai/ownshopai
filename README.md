@@ -32,12 +32,20 @@ order?" by hand, or pay every month for a chatbot, an AI plan, hosting and a dom
 - **WhatsApp** (unofficial link through wacli, see the warning below) and **Telegram** (official bot).
 - **Website (coming soon)**: a public chat link customers open in any browser, from a phone or a computer. The free
   link service is not open yet, so the Website card in Settings says **Coming soon** for now. Your shop page itself
-  stays on your computer only; only the customer chat is published, through a Cloudflare tunnel (install Cloudflare's
-  free `cloudflared` once). The link is a free fixed `yourname.ownshopai.store`, on the **Website** card in Settings:
-  sign in with Google, pick a name, and it stays the same after a restart.
+  stays on your computer only; only the customer chat is published, through the OwnShop AI link service: the app
+  keeps one outbound connection open to it (nothing to install, no router settings, works on mobile data). The link
+  is a free fixed `yourname.ownshopai.store`, on the **Website** card in Settings: sign in with Google, pick a name,
+  and it is online while the app runs and stays the same after a restart.
   Customers type a phone number or an email (not verified; name optional), and the browser remembers them. The chat is a **PWA**: they can
   add it to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS
   16.4 or later). Guide: [docs/guides/14-web-chat-link.md](docs/guides/14-web-chat-link.md).
+
+### Serve it yourself (advanced, not supported)
+
+The customer chat, and only the customer chat, is on its own port, `127.0.0.1:2008`; every owner page answers 404
+there. If you would rather not use the free link, point a tunnel of your own at that port: `ngrok http 2008` or
+`cloudflared tunnel --url http://127.0.0.1:2008`. **Never point anything at 2007**: that is your shop page with your
+orders and settings. The computer must stay on, and we do not support this setup.
 
 You click **Payment received**, **Packed**, **Shipped**, **Delivered** or **Cancel** on the Orders page, and each click
 messages the customer (Payment received also sends a receipt image). The **Users** page is one table of every customer
@@ -85,7 +93,6 @@ file. Nothing else to install. On the Mac, until the app is notarized, macOS ask
 - About 600 MB of disk and about 1 GB of free memory while chatting. A reply takes about 0.4 s on a recent Mac.
 - No API key, no account, no internet AI service. The model runs locally.
 - For WhatsApp: a spare phone number. For Telegram: a bot token from @BotFather.
-- For the website chat link: Cloudflare's free `cloudflared` program (`winget install --id Cloudflare.cloudflared` or `brew install cloudflared`).
 - To build from source: Go (see `go.mod`), [Task](https://taskfile.dev), and for the installers cmake and zig.
 
 ## Using it

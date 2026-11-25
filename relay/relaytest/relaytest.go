@@ -35,7 +35,9 @@ func New(key, name string) *Server {
 }
 
 // URL of the relay endpoint, ws://...
-func (s *Server) RelayURL() string { return "ws" + strings.TrimPrefix(s.Server.URL, "http") + "/v1/relay" }
+func (s *Server) RelayURL() string {
+	return "ws" + strings.TrimPrefix(s.Server.URL, "http") + "/v1/relay"
+}
 
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()

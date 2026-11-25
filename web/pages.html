@@ -219,27 +219,19 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 {{end}}
 
 {{define "website"}}{{with .Web}}<div class="card" id="website">
-<div class="row"><strong>Website (your own public chat link)</strong><span class="pill">{{if eq .State "on"}}on{{else if eq .State "starting"}}starting{{else if eq .State "error"}}stopped{{else}}off{{end}}</span></div>
+<div class="row"><strong>Website (your own public chat link)</strong><span class="pill">{{if eq .State "on"}}online{{else if eq .State "starting"}}connecting{{else if eq .State "error"}}stopped{{else}}off{{end}}</span></div>
 <p class="muted">Customers chat with your shop in their browser, from any phone or computer, with a free link of your own: <em>yourname.{{$.LinkDomain}}</em>. It stays the same after a restart. Your shop page stays on this computer only.</p>
-{{if not .Found}}<p><strong>Needs Cloudflare's free tunnel program (cloudflared).</strong> Install it once:</p>
-<ul class="muted"><li>Windows: open Command Prompt and run <code>winget install --id Cloudflare.cloudflared</code></li>
-<li>Mac: run <code>brew install cloudflared</code> in Terminal</li>
-<li>Or <a href="{{.DownloadURL}}" target="_blank" rel="noopener">Download cloudflared</a> from Cloudflare.</li></ul>
-<form method="post" action="/channels/website/check?ret={{$.Ret}}"><button class="ghost">Check again</button></form>
-{{else}}<p class="muted">Cloudflare's tunnel program {{if .Version}}{{.Version}} {{end}}is installed on this computer.</p>
-{{if eq .State "on"}}<p>Your public chat link: <a href="{{.URL}}" target="_blank" rel="noopener"><strong>{{.URL}}</strong></a>
-<button type="button" class="ghost" onclick="navigator.clipboard.writeText('{{.URL}}');this.textContent='Copied'">Copy</button></p>
-<p><img src="/channels/website/qr.png" alt="QR code of your public chat link" width="260" height="260"></p>
-<p class="muted">Share the link or let customers scan the code. The link works only while this computer is on and OwnShop AI is running.</p>
-<form method="post" action="/channels/website/stop?ret={{$.Ret}}"><button class="ghost">Stop</button></form>
-{{else}}{{if .Err}}<p class="warn">{{.Err}}</p>{{end}}{{end}}{{end}}
-
-<h3>Free link: <em>yourname.{{$.LinkDomain}}</em></h3>
 {{if .LinkHost}}<p>Your free link: <strong>https://{{.LinkHost}}</strong></p>
 {{if $.LinkOff}}<p class="warn">This link is off: {{$.LinkOff}}. Questions: <a href="mailto:io@deemwar.com">io@deemwar.com</a></p>{{end}}
-<div class="row">{{if ne .State "on"}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><button>Make my web chat public</button></form>{{end}}
-{{if $.SignedIn}}<form method="post" action="/channels/website/rotate?ret={{$.Ret}}" onsubmit="return confirm('Make a new tunnel key? The link stays the same.')"><button class="ghost">New tunnel key</button></form>{{end}}
+{{if eq .State "on"}}<p>Online: <a href="{{.URL}}" target="_blank" rel="noopener"><strong>{{.URL}}</strong></a>
+<button type="button" class="ghost" onclick="navigator.clipboard.writeText('{{.URL}}');this.textContent='Copied'">Copy</button></p>
+<p><img src="/channels/website/qr.png" alt="QR code of your public chat link" width="260" height="260"></p>
+<p class="muted">Share the link or let customers scan the code. The link works while OwnShop AI is running and online (Wi-Fi or mobile data).</p>
+{{else if $.LinkErr}}<p class="warn">Offline: {{$.LinkErr}}</p>{{end}}
+<div class="row">{{if eq .State "off" "error"}}{{if $.SignedIn}}<form method="post" action="/channels/website/start?ret={{$.Ret}}"><button>Put my link online</button></form>{{end}}{{else}}<form method="post" action="/channels/website/stop?ret={{$.Ret}}"><button class="ghost">Take offline</button></form>{{end}}
 <form method="post" action="/channels/website/release?ret={{$.Ret}}" onsubmit="return confirm('Release https://{{.LinkHost}}? Someone else can take the name and your QR codes stop working.')"><button class="ghost">Release this link</button></form></div>
+{{if not $.SignedIn}}<p class="muted">Sign in again to put the link online.</p>
+<form method="post" action="/channels/website/signin?ret={{$.Ret}}"><button>Sign in with Google</button></form>{{end}}
 {{else if not $.LinkUp}}<p><strong>Coming soon.</strong> <span class="muted">The free link service is not reachable right now. This card works as soon as it answers.</span></p>
 <p><button disabled>Sign in with Google</button></p>
 {{else if $.SignedIn}}<form class="row" method="post" action="/channels/website/claim?ret={{$.Ret}}"><input type="text" name="name" id="lname" placeholder="myshop" pattern="[a-z0-9-]{3,30}" required autocomplete="off"><span class="muted">.{{$.LinkDomain}}</span><button>Get my link</button></form>
@@ -249,7 +241,7 @@ document.getElementById('svcs').addEventListener('click',function(e){if(e.target
 <form method="post" action="/channels/website/signin?ret={{$.Ret}}"><button>Sign in with Google</button></form>
 <p class="muted">By continuing you accept the <a href="https://ownshopai.store/terms/" target="_blank" rel="noopener">Terms</a> and the <a href="https://ownshopai.store/privacy/" target="_blank" rel="noopener">Privacy policy</a>.</p>{{end}}
 {{if $.SignedIn}}<form method="post" action="/channels/website/signout?ret={{$.Ret}}"><button class="ghost">Sign out of the link service</button></form>{{end}}
-<p class="muted">Cloudflare carries the chat traffic between your customers and this computer.</p>
+<p class="muted">The OwnShop AI link service carries the chat between your customers and this computer. Nothing to install, no router settings.</p>
 </div>{{end}}{{end}}
 
 {{define "settings"}}{{template "head" .}}
@@ -471,11 +463,12 @@ document.getElementById('login').onsubmit = async e => {
 .b small { display:block; opacity:.7; font-size:11px; margin-top:2px; }
 .wcbar { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
 .wcbar input { flex:1; min-width:0; }
-#offline { display:none; background:#fff3cd; color:#5c4400; padding:8px 10px; border-radius:8px; margin-bottom:8px; }
+#offline, #shopoff { display:none; background:#fff3cd; color:#5c4400; padding:8px 10px; border-radius:8px; margin-bottom:8px; }
 .hide { display:none !important; }
 </style></head>
 <body><header><strong>{{if .Shop}}{{.Shop}}{{else}}Shop chat{{end}}</strong><span class="muted" id="who"></span> <a href="#" id="notme" class="hide">Not you? Start again</a></header><main>
 <div id="offline">You are offline. Messages will load again when you are back online.</div>
+<div id="shopoff" style="display:none">This shop is offline right now. It will reply when it is back.</div>
 <form class="card hide" id="signin" style="max-width:380px;margin:0 auto">
 <h1>Chat with us</h1><p class="muted">Type your phone number or email (one is enough) so the shop knows who you are. No password.</p>
 <label>Phone number</label><input type="tel" id="phone" autocomplete="tel" placeholder="+1 555 123 4567">
@@ -502,11 +495,15 @@ function add(m) {
   const s = document.createElement('small'); s.textContent = m.ts; d.appendChild(s);
   $('msgs').appendChild(d); $('msgs').scrollTop = $('msgs').scrollHeight;
 }
-function online(on) { $('offline').style.display = on ? 'none' : 'block'; }
+function online(on) { $('offline').style.display = on ? 'none' : 'block'; if (!on) shopOff(false); }
+// 503 (or {error:"shop_offline"}) comes from the link service while the shop's computer or phone is not connected.
+function shopOff(on) { $('shopoff').style.display = on ? 'block' : 'none'; }
 async function poll() {
   try {
     const r = await fetch('/api/messages?after=' + last);
     if (r.status === 401) { start(); return; }
+    if (r.status === 503) { shopOff(true); return; }
+    shopOff(false);
     const j = await r.json();
     for (const m of j.messages) { add(m); last = m.id; }
     online(true); $('err').textContent = '';
@@ -514,7 +511,7 @@ async function poll() {
 }
 async function start() {
   let me;
-  try { me = await (await fetch('/api/me')).json(); online(true); } catch (e) { online(false); setTimeout(start, 3000); return; }
+  try { const r = await fetch('/api/me'); if (r.status === 503) { shopOff(true); setTimeout(start, 5000); return; } shopOff(false); me = await r.json(); online(true); } catch (e) { online(false); setTimeout(start, 3000); return; }
   if (!me.signed_in) { show('signin', true); show('chat', false); show('notme', false); $('who').textContent = ''; if (timer) clearInterval(timer); return; }
   $('who').textContent = ' ' + me.name; show('notme', true); show('signin', false); show('chat', true);
   $('msgs').textContent = ''; last = 0; poll(); if (timer) clearInterval(timer); timer = setInterval(poll, 2000);
@@ -524,6 +521,7 @@ $('signin').onsubmit = async e => {
   e.preventDefault();
   try {
     const r = await post('/api/signin', {name:$('name').value, phone:$('phone').value, email:$('email').value});
+    if (r.status === 503) { shopOff(true); $('serr').textContent = 'This shop is offline right now. Try again in a little while.'; return; }
     const j = await r.json();
     if (!r.ok) { $('serr').textContent = j.error; return; }
     start();
@@ -531,7 +529,7 @@ $('signin').onsubmit = async e => {
 };
 $('f').onsubmit = async e => {
   e.preventDefault(); const t = $('t'); const v = t.value.trim(); if (!v) return;
-  try { const r = await post('/api/send', {text:v}); if (!r.ok) { $('err').textContent = (await r.json()).error; return; } t.value = ''; poll(); }
+  try { const r = await post('/api/send', {text:v}); if (r.status === 503) { shopOff(true); $('err').textContent = 'This shop is offline right now. Your message was not sent; try again in a little while.'; return; } if (!r.ok) { $('err').textContent = (await r.json()).error; return; } t.value = ''; poll(); }
   catch (e) { online(false); }
 };
 $('notme').onclick = async e => { e.preventDefault(); await post('/api/signout', {}); start(); };

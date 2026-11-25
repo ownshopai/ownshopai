@@ -22,10 +22,10 @@ import (
 
 // The free fixed link: <name>.ownshopai.store, handed out by the OwnShop AI link service
 // (contract: linkservice/API.md). The owner signs in with Google on the service's page (OAuth
-// loopback + PKCE S256); the app gets an app key, claims a name and runs the tunnel token it gets
-// back like the owner's own token (tunnel.go). The app key and the tunnel token are secrets: kept in
-// the settings table, never shown, never logged; the app key only ever goes in the Authorization
-// header.
+// loopback + PKCE S256); the app gets an app key and claims a name; the shop is then reached through
+// the link service's relay (weblink.go, package relay), which needs the same app key. The app key is
+// a secret: kept in the settings table, never shown, never logged; it only ever goes in the
+// Authorization header. (Older versions saved a tunnel token in web_link_token; it is ignored now.)
 
 const (
 	linkUIBase  = "https://links.ownshopai.store"
@@ -34,8 +34,6 @@ const (
 
 	setLinkName     = "web_link_name"
 	setLinkHost     = "web_link_host"
-	setLinkToken    = "web_link_token" // secret: the tunnel token
-	setLinkTokenAt  = "web_link_token_at"
 	setLinkStatus   = "web_link_status" // "", "disabled:<reason>"
 	setLinkBeatDate = "web_link_heartbeat"
 	setLinkAppKey   = "web_link_app_key"  // secret: the signed-in session with the link service
@@ -44,10 +42,9 @@ const (
 )
 
 type LinkClaim struct {
-	Name        string `json:"name"`
-	Hostname    string `json:"hostname"`
-	TunnelToken string `json:"tunnel_token"`
-	Origin      string `json:"origin"`
+	Name     string `json:"name"`
+	Hostname string `json:"hostname"`
+	URL      string `json:"url"`
 }
 
 type LinkInfo struct {
@@ -55,7 +52,6 @@ type LinkInfo struct {
 	Hostname       string `json:"hostname"`
 	Status         string `json:"status"`
 	DisabledReason string `json:"disabled_reason"`
-	TokenChangedAt string `json:"token_changed_at"`
 }
 
 // LinkError is the service's error body: {"error": {"code", "message", "request_id"}}.
@@ -85,8 +81,6 @@ type LinkService interface {
 	Available(ctx context.Context, name string) (bool, string, error)
 	Claim(ctx context.Context, appKey, name string) (LinkClaim, error)
 	Heartbeat(ctx context.Context, appKey, name string) (LinkInfo, error)
-	Token(ctx context.Context, appKey, name string) (string, error)
-	Rotate(ctx context.Context, appKey, name string) (string, error)
 	Release(ctx context.Context, appKey, name string) error
 }
 
@@ -186,22 +180,6 @@ func (h *httpLinkService) Heartbeat(ctx context.Context, key, name string) (Link
 	return r, err
 }
 
-func (h *httpLinkService) token(ctx context.Context, path, key, name string) (string, error) {
-	var r struct {
-		Token string `json:"tunnel_token"`
-	}
-	err := h.call(ctx, "POST", path, key, map[string]string{"name": name}, &r)
-	return r.Token, err
-}
-
-func (h *httpLinkService) Token(ctx context.Context, key, name string) (string, error) {
-	return h.token(ctx, "/v1/token", key, name)
-}
-
-func (h *httpLinkService) Rotate(ctx context.Context, key, name string) (string, error) {
-	return h.token(ctx, "/v1/rotate", key, name)
-}
-
 func (h *httpLinkService) Release(ctx context.Context, key, name string) error {
 	return h.call(ctx, "POST", "/v1/release", key, map[string]string{"name": name}, nil)
 }
@@ -235,7 +213,7 @@ func friendly(err error) error {
 		"name_taken":            "that name is taken; pick another",
 		"link_limit":            "you already have a free link; release it first to take another name",
 		"rate_limited":          "too many tries; wait a while and try again",
-		"upstream_failed":       "Cloudflare did not answer; try again in a few minutes",
+		"link_disabled":         "this link is turned off by the link service; write to io@deemwar.com",
 		"link_not_found":        "the link service does not know this link any more",
 		"unauthorized":          "the sign-in is no longer valid; sign in with Google again",
 	}[le.Code]
@@ -287,7 +265,8 @@ func FinishLinkLogin(ctx context.Context, s *Store, ls LinkService, code, state 
 	return nil
 }
 
-// SignOutLink revokes the app key and forgets it (the claimed link keeps running).
+// SignOutLink revokes the app key and forgets it. The name stays claimed, but the relay needs the app
+// key, so the link is offline until the owner signs in again.
 func SignOutLink(ctx context.Context, s *Store, ls LinkService) error {
 	key := s.Get(setLinkAppKey)
 	s.Set(setLinkAppKey, "")
@@ -297,7 +276,7 @@ func SignOutLink(ctx context.Context, s *Store, ls LinkService) error {
 	return friendly(ls.Revoke(ctx, key))
 }
 
-// ClaimLink gets name.ownshopai.store and keeps its tunnel token in the settings.
+// ClaimLink reserves name.ownshopai.store and keeps the name in the settings.
 func ClaimLink(ctx context.Context, s *Store, ls LinkService, name string) (string, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if !validLinkName(name) {
@@ -311,35 +290,16 @@ func ClaimLink(ctx context.Context, s *Store, ls LinkService, name string) (stri
 	if err != nil {
 		return "", friendly(err)
 	}
-	if c.Hostname == "" || c.TunnelToken == "" || !strings.HasSuffix(c.Hostname, "."+linkDomain) {
+	if c.Hostname == "" || !strings.HasSuffix(c.Hostname, "."+linkDomain) {
 		return "", errors.New("the link service gave an answer OwnShop AI does not understand")
-	}
-	if c.Origin != "" && c.Origin != "http://127.0.0.1:2008" {
-		log.Printf("website: the link service routes to %s, the public chat is on 127.0.0.1:2008", c.Origin)
 	}
 	if c.Name == "" {
 		c.Name = name
 	}
 	s.Set(setLinkName, c.Name)
 	s.Set(setLinkHost, c.Hostname)
-	s.Set(setLinkToken, c.TunnelToken)
-	s.Set(setLinkTokenAt, time.Now().UTC().Format(time.RFC3339))
 	s.Set(setLinkStatus, "")
 	return c.Hostname, nil
-}
-
-// RotateLink asks for a new tunnel token (the old one stops working).
-func RotateLink(ctx context.Context, s *Store, ls LinkService) error {
-	tok, err := ls.Rotate(ctx, s.Get(setLinkAppKey), s.Get(setLinkName))
-	if err != nil {
-		return friendly(err)
-	}
-	if tok == "" {
-		return errors.New("the link service gave an answer OwnShop AI does not understand")
-	}
-	s.Set(setLinkToken, tok)
-	s.Set(setLinkTokenAt, time.Now().UTC().Format(time.RFC3339))
-	return nil
 }
 
 // ReleaseLink gives the name back and forgets the link (also when the service cannot be told, so
@@ -354,24 +314,23 @@ func ReleaseLink(ctx context.Context, s *Store, ls LinkService) error {
 	default:
 		err = friendly(ls.Release(ctx, key, name))
 	}
-	for _, k := range []string{setLinkName, setLinkHost, setLinkToken, setLinkTokenAt, setLinkStatus, setLinkBeatDate} {
+	for _, k := range []string{setLinkName, setLinkHost, setLinkStatus, setLinkBeatDate} {
 		s.Set(k, "")
 	}
 	return err
 }
 
-// beatOnce sends the daily heartbeat. It returns true when the tunnel token changed (an admin
-// rotated it) and the new one is saved, so the tunnel must restart.
-func beatOnce(ctx context.Context, s *Store, ls LinkService) bool {
+// beatOnce sends the daily heartbeat and records whether the service turned the link off.
+func beatOnce(ctx context.Context, s *Store, ls LinkService) {
 	name, key := s.Get(setLinkName), s.Get(setLinkAppKey)
 	today := time.Now().Format("2006-01-02")
 	if name == "" || key == "" || s.Get(setLinkBeatDate) == today {
-		return false
+		return
 	}
 	info, err := ls.Heartbeat(ctx, key, name)
 	if err != nil {
 		log.Printf("website: link heartbeat: %v", friendly(err))
-		return false
+		return
 	}
 	s.Set(setLinkBeatDate, today)
 	if info.Status == "disabled" {
@@ -379,28 +338,12 @@ func beatOnce(ctx context.Context, s *Store, ls LinkService) bool {
 	} else {
 		s.Set(setLinkStatus, "")
 	}
-	changed, err1 := time.Parse(time.RFC3339, info.TokenChangedAt)
-	have, err2 := time.Parse(time.RFC3339, s.Get(setLinkTokenAt))
-	if info.TokenChangedAt == "" || err1 != nil || (err2 == nil && !changed.After(have)) {
-		return false
-	}
-	tok, err := ls.Token(ctx, key, name)
-	if err != nil || tok == "" {
-		log.Printf("website: new link token: %v", friendly(err))
-		return false
-	}
-	s.Set(setLinkToken, tok)
-	s.Set(setLinkTokenAt, changed.UTC().Format(time.RFC3339))
-	return true
 }
 
-// linkHeartbeat runs beatOnce every hour (it only calls the service once a day); restart runs when
-// the token changed.
-func linkHeartbeat(ctx context.Context, s *Store, ls LinkService, restart func()) {
+// linkHeartbeat runs beatOnce every hour (it only calls the service once a day).
+func linkHeartbeat(ctx context.Context, s *Store, ls LinkService) {
 	for {
-		if beatOnce(ctx, s, ls) && restart != nil {
-			restart()
-		}
+		beatOnce(ctx, s, ls)
 		select {
 		case <-ctx.Done():
 			return

@@ -25,6 +25,12 @@ excelize - github.com/xuri/excelize/v2
 go-qrcode - github.com/skip2/go-qrcode
   MIT License.
 
+websocket - github.com/coder/websocket (the link relay connection)
+  ISC License.
+
+yamux - github.com/hashicorp/yamux (many chats over the one link relay connection)
+  Mozilla Public License 2.0, unmodified. Source: https://github.com/hashicorp/yamux
+
 Go fonts and golang.org/x/image
   BSD-3-Clause.
 

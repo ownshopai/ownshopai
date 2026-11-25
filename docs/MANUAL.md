@@ -210,11 +210,10 @@ Find **Start over** at the bottom of each page, or in **Settings**. Both choices
 
 Customers chat with your shop in any browser through a public link. No website or domain needed; your shop page stays on this computer only. Full guide: [Put your chat on the web](guides/14-web-chat-link.md).
 
-1. Install Cloudflare's free tunnel program once: Windows `winget install --id Cloudflare.cloudflared`, Mac `brew install cloudflared`, or download it from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/. Then click **Check again** on the **Website (your own public chat link)** card in Settings > Chat channels.
-2. Get your free link `yourname.ownshopai.store`: **Sign in with Google**, pick a name, **Get my link**, then **Make my web chat public**. It stays the same after a restart. While the link service cannot be reached, the card says **Coming soon**.
-3. Share the link or its QR code. The Orders page shows it too. **Stop** takes it offline; if it was on, it starts again by itself when OwnShop AI starts.
-4. Customers type a phone number or email (name optional, no password). The browser remembers them. They can add the chat to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS 16.4 or later).
-5. The Users page lists web customers with name, phone ("web, phone not verified"), first and last visit, and Block.
+1. Get your free link `yourname.ownshopai.store` on the **Website (your own public chat link)** card in Settings > Chat channels: **Sign in with Google**, pick a name, **Get my link**. It goes online by itself (nothing to install; it works behind any router and on mobile data) and stays the same after a restart. While the link service cannot be reached, the card says **Coming soon**.
+2. Share the link or its QR code. The Orders page shows it too. **Take offline** stops it; if it was on, it comes back by itself when OwnShop AI starts.
+3. Customers type a phone number or email (name optional, no password). The browser remembers them. They can add the chat to the home screen and turn on notifications for replies (on iPhone after adding it to the home screen, iOS 16.4 or later).
+4. The Users page lists web customers with name, phone ("web, phone not verified"), first and last visit, and Block.
 
-Limits: the computer must stay on; Cloudflare carries and can see the traffic; phone numbers are not checked; each browser is its own customer and is never merged with WhatsApp or Telegram.
+Limits: the computer must stay on; the OwnShop AI link service and Cloudflare carry and can see the traffic; phone numbers are not checked; each browser is its own customer and is never merged with WhatsApp or Telegram.
 
